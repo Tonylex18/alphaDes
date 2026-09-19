@@ -1,0 +1,25 @@
+{
+  "name": "alphades",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "db:generate": "npm run generate -w @alphades/db",
+    "db:push": "npm run push -w @alphades/db",
+    "db:studio": "npm run studio -w @alphades/db",
+    "dev:web": "npm run dev -w @alphades/web",
+    "dev:worker": "npm run dev -w @alphades/worker",
+    "tg:login": "npm run login -w @alphades/worker",
+    "tg:channels": "npm run channels -w @alphades/worker",
+    "tg:dump": "npm run dump -w @alphades/worker",
+    "test": "npm run test -w @alphades/worker",
+    "typecheck": "tsc -b --pretty"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.1",
+    "@types/node": "^22.7.5"
+  }
+}
