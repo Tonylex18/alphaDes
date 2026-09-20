@@ -8,16 +8,18 @@
     "login": "tsx src/scripts/login.ts",
     "channels": "tsx src/scripts/list-channels.ts",
     "dump": "tsx src/scripts/dump-messages.ts",
-    "test": "node --import tsx --test src/ingest/*.test.ts"
+    "test": "node --import tsx --test src/ingest/*.test.ts src/lib/*.test.ts",
+    "seed:channels": "tsx src/scripts/seed-channels.ts",
+    "report": "tsx src/scripts/ingest-report.ts"
   },
   "dependencies": {
     "@alphades/db": "*",
     "telegram": "^2.25.4",
     "input": "^1.0.1",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.1"
   },
   "devDependencies": {
-    "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "@types/node": "^22.7.5"
   }

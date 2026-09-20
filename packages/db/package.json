@@ -9,10 +9,10 @@
     "studio": "dotenv -e ../../.env -- prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.20.0"
+    "@prisma/client": "^5.20.0",
+    "prisma": "^5.20.0"
   },
   "devDependencies": {
-    "dotenv-cli": "^11.0.0",
-    "prisma": "^5.20.0"
+    "dotenv-cli": "^11.0.0"
   }
 }

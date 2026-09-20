@@ -1,0 +1,9 @@
+# Belt and braces on top of .gitignore: none of this may ever be uploaded.
+.env
+.env.*
+!.env.example
+*.session
+data/dumps/
+.neon
+node_modules/
+**/*.tmp.*
