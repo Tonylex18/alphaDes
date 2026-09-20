@@ -1,11 +1,8 @@
-import { config as loadEnv } from "dotenv";
+// Importing env.js loads the repo-root .env. npm workspaces set cwd to
+// apps/worker, so dotenv's default lookup would miss it entirely.
+import { ENV_PATH } from "./env.js";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
-import { ENV_PATH } from "./paths.js";
-
-// Explicit path: npm workspaces set cwd to apps/worker, so the default lookup
-// would miss the repo-root .env entirely.
-loadEnv({ path: ENV_PATH });
 
 export function requireEnv(name: string): string {
   const v = process.env[name];
