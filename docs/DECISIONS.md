@@ -103,3 +103,175 @@ the 41 milestones in the dumps resolve to nothing — bare "3x" messages with no
 and a boast about a call made on the caller's X account. They stay `UNCLASSIFIED`.
 Crediting a 5x to the wrong token is precisely the dishonesty this product exists to
 avoid.
+
+## Phase 1 — ingestion
+
+**Commentary on BARE_CA channels is stitched inside a 90-second window, and never
+writes a number.** The private channel posts the bare address and then its opinion as
+separate messages ("gamble", "Risking this", "Got in 14k"). The window was measured
+on the Day 0 dump: across 26 calls, on-topic commentary lands within 77 seconds, and
+past ~90 the chatter has moved to other tokens, media and replies to older messages.
+90s admits 26 messages; 24 are about the call they follow. The two that are not —
+call 1242 +54s "Send is at 600k mc now" and +63s "So maybe a 2nd runner" — are about
+a different token, and the first contains a market cap. "Got in 14k" (call 1114,
++72s) and "Send is at 600k mc now" are the same shape and cannot be told apart. So
+stitched messages become `COMMENTARY` events with the raw text, shown as chatter that
+followed the call, and never set `statedMarketCapUsd` or anything else numeric.
+Further guards: no links, nothing over 160 characters, no media-only messages, and an
+explicit reply must resolve to *this* call — a reply to anything else is about
+something else, however close in time. If two calls land inside one window the
+chatter attaches to neither. The closest two calls in the dump are 22 minutes apart,
+so this has never fired on real data; it costs nothing to be right about it.
+
+**Every message is recorded in `SeenMessage`, whatever we decide about it.** Reply
+chains are the main way a milestone finds its call — 28 of 31 in the public channel —
+and they routinely pass through messages we ignore: "3x" (1240) replies to a photo
+(1237) that replies to the call (1234). The first version stored only messages it
+acted on, the chain dead-ended at the photo, and the milestone attached to nothing.
+The integration test caught it. One small row per message is the price.
+
+**An unattributable milestone is kept with `callId = NULL`, not dropped.** It is
+recorded as `UNCLASSIFIED` with its raw text. A parent we cannot identify today may
+become identifiable — the test "a milestone arriving before its call attaches on the
+replay" does exactly that. What we never do is guess one.
+
+**Replaying a call's own message must not demote it.** Found by feeding a batch twice:
+the second pass saw that the call already existed and rewrote its `FIRST_CALL` event as
+a `REPOST`. The call's own message is now recognised by id and re-asserted as
+`FIRST_CALL`. This is the kind of bug that only a replay test finds, which is the
+argument for the test.
+
+**The ingest path is built around round trips, because they were the bottleneck.**
+Measured from a laptop against the dev branch: a round trip is ~245ms and a Prisma
+`upsert` ~2.5s, because it runs a transaction. The first version did an upsert and
+several point reads per message, and backfilled at 0.31 messages per second — over
+ten minutes for 200 messages, and a catch-up after an hour's outage would have kept
+the listener deaf for half an hour. Now each channel's state is read once into memory
+(three queries), `SeenMessage` is inserted for a whole batch in one `createMany` with
+`skipDuplicates`, and a row is written only when something changes. Re-processing an
+unchanged message writes nothing. No interactive transactions anywhere on this path:
+their 5s default timeout is shorter than a Neon cold start.
+
+**Neon's wake-up is survived, not assumed away.** After an idle spell the first
+connection takes ~5s and succeeds; new connections opened in the next few seconds fail
+with P1001, because Prisma's connect timeout is 5s. So "is the database up?" is
+answered by four parallel `select 1`s, not one — the ingest path fans out to three.
+And connection-level errors on the ingest path are retried with backoff. That is only
+safe because processing is idempotent and the in-memory state is updated *after* each
+write succeeds, never before. Non-transient errors — constraint violations, bad
+queries — are not retried: retrying a bug only hides it.
+
+**Health watches the polling clock, not the message clock.** A channel can be silent
+for a day; that is `lastSeenAt` and it is allowed to be old. A dead socket is
+`lastPolledAt` and the worker heartbeat going stale, and those must not be. `/health`
+returns 503 past 180 seconds (six missed beats — long enough to ride out a cold start
+plus a reconnect). A check that watched `lastSeenAt` would page on a quiet Sunday and
+stay silent on a dead listener, which is exactly backwards.
+
+*Corrected when deploying:* this entry originally said Railway restarts a container
+whose health check fails. It does not. Railway's docs are explicit that it checks
+`/health` only during a deploy, to decide whether the deploy succeeded, and "does not
+monitor the healthcheck endpoint after the deployment has gone live." The ongoing guard
+is now a watchdog inside the worker — see the Phase 7 entries below.
+
+**A polling loop runs under the live socket.** Every 60s the worker re-reads the
+channel list and catches up each channel from its cursor. It is redundant when the
+socket works. It is the whole point when the socket silently stops delivering —
+which is the failure this phase is about, and which the socket itself cannot report.
+
+**The cursor advances only after the rows land.** A crash between processing and
+advancing replays the message, which is harmless. A crash the other way round would
+lose it. A live message that throws is recorded on the heartbeat and does *not*
+advance the cursor, so the next poll picks it up.
+
+**Backfilled calls are `source = BACKFILL`, with `calledAtMarketCapUsd` null and
+`marketCapIsBackfilled` true.** We were not there when they were called. Phase 2
+reconstructs the number from OHLCV; until then it is honestly absent.
+
+**The worker refuses to start against the production branch.** It checks
+`NEON_BRANCH` and exits. Test rows and half-finished backfills do not belong in the
+public record, and the public record is the product.
+
+## Phase 7 (worker only) — brought forward
+
+**The worker is deployed to Railway now, ahead of Phase 7, because the live-path
+question needs days of uptime and a laptop cannot provide it.** Measured on the laptop
+over 14 minutes: three real messages arrived, all three were delivered by the 60s poll
+and none by the live handler, and GramJS lost its Telegram connection repeatedly (three
+update-loop `TIMEOUT`s, and a keep-alive warning every ~20 seconds). That cannot tell a
+broken live handler from a broken network. A server can. The web app stays local;
+only the worker moves.
+
+**Liveness lives in process memory; the database is touched only when a message
+arrives.** The first version wrote a heartbeat row every 30s and `lastPolledAt` every
+60s, which keeps Neon's compute from ever reaching its idle threshold and spends the
+free tier's compute hours proving the worker is alive. Both are gone from the schema.
+Measured afterwards, locally: `dbQueries` held at exactly 20 for seven minutes of
+polling three channels, and Neon's dev compute went from active to idle and stayed idle
+while the worker kept polling Telegram. The open Prisma connection does not keep Neon
+awake; only queries do. `/health` reports `dbQueries` so this stays checkable.
+
+**The channel list is read at startup, not polled.** Re-reading it every minute was a
+query every minute. Adding or pausing a channel is still configuration, not code — an
+insert (or `seed:channels`) — but it now takes effect on the next restart rather than
+within a minute. That is the price of letting the database sleep.
+
+**Every message records which path delivered it, and how late.** `SeenMessage.ingestPath`
+is LIVE, POLL, CATCHUP or BACKFILL; `receivedAt` is when it reached our code, and
+`processedAt` when it was written. So receivedLag (Telegram → us) and writeLag (Telegram
+→ row, including any Neon cold start) are separate numbers. A POLL row is a message the
+live path missed or delivered late. The poll stays at 60s deliberately: a fast poll
+would do the live path's job and hide a dead handler, which is what is being measured.
+
+**The poll re-reads 50 message ids below its cursor.** Found while moving liveness into
+memory: the cursor is "highest id processed", so if the live path missed 1302 but
+delivered 1303, the cursor jumped past 1302 and the poll — which only asked for newer
+messages — would never fetch it. A message silently lost, exactly the failure this
+product cannot afford, and one the old design could not even have counted. Channel
+message ids are sequential, so a fixed id window recovers any gap the live path leaves
+between polls. Live and poll share a per-channel lock and a seen-set, so a message is
+processed exactly once and credited to whichever path got there first.
+
+**Observation channels write nothing to the database.** @MemesDontLies is added as
+`role = OBSERVE`: measured for live-vs-poll and latency, never stored. Its calls cannot
+reach the track record because they never reach the database — by construction, not
+by a filter Phase 6 has to remember. This goes slightly beyond "stored but excluded",
+for a measured reason: it is a bot channel posting ~430 messages a day, one every ~3.4
+minutes, which is inside Neon's idle window — persisting its messages would keep the
+database awake around the clock and undo the change above. Its measurements live in
+memory and in the worker's periodic `[stats]` log line. It also does not backfill.
+Worth noting for later: under the existing classifier both of its message shapes read
+as scanner cards, so as a TRACK channel it would produce zero calls; tracking it would
+need a third `ChannelKind`.
+
+**Railway watches `/health` only during a deploy, so the worker watches itself.** If any
+channel's poll has not succeeded for 10 minutes, or the event loop stops ticking, the
+process logs why and exits; Railway's `restartPolicyType: ALWAYS` restarts it. `ALWAYS`
+rather than `ON_FAILURE`, whose retry cap would leave the worker dead after a long
+enough Telegram outage. `/health` itself reads memory only — a check that queried Neon
+would keep it awake and report "unhealthy" whenever it slept, which is its normal state.
+
+**A deploy cannot be failed by a backfill, and cannot double-run the Telegram
+session.** `/health` returns 200 while the process is connecting and catching up; poll
+freshness only counts once it is live, and the health-check timeout is 600s. On a
+redeploy Railway starts the new container before stopping the old one — and two
+processes on one Telegram session is how a session gets revoked. So the new process
+answers `/health` immediately (letting Railway stop the old one, with
+`overlapSeconds: 0`), then waits `STARTUP_DELAY_MS` (20s on Railway) before connecting to
+Telegram. The same rule binds people: **never run `tg:login`, `tg:channels`, `tg:dump` or
+a local worker while the Railway worker is up.**
+
+**Secrets are redacted from every log line, and that was tested, not assumed.** Every
+console method is wrapped to scrub `TG_SESSION`, `TG_API_HASH`, both database URLs, and a
+database password on its own; uncaught exceptions are routed through it too, since Node
+prints those around `console`. Tested by running the real worker down two error paths
+with canary secrets (a wrong database password; a garbage Telegram session): no canary
+and no real secret appeared in the output. Found on the way: Neon reports a wrong
+password exactly as it reports a network failure — "Can't reach database server", no
+error code — so the startup error now names both possibilities instead of claiming an
+outage.
+
+**Railway region is us-east4, beside the database.** Neon is in us-east-2 (Ohio). The
+Telegram account's home data centre is DC4 (Amsterdam), so each push crosses the
+Atlantic — tens of milliseconds, against lags measured in seconds. A message costs
+several database round trips and one Telegram delivery, so the database wins.

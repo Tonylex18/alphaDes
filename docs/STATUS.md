@@ -6,13 +6,65 @@ reading diffs.
 | Phase | What | State |
 |---|---|---|
 | 0 | Read both channels, write classifier from real messages | **DONE** |
-| 1 | Ingestion — listener, channels table, call/event model, backfill | Not started |
+| 1 | Ingestion — listener, channels table, call/event model, backfill | **BUILT — live capture not yet observed** |
 | 2 | Market data — DexScreener polling, mcap capture, dead detection | Not started |
 | 3 | Narrative — socials -> 2-3 sentences, generated once | Not started |
 | 4 | Auth + feed — Privy email login, live feed | Not started |
 | 5 | Journal — log a play, entry-vs-call multiple | Not started |
 | 6 | Public track record + landing page | Not started |
-| 7 | Deploy and harden | Not started |
+| 7 | Deploy and harden | **Worker deploy brought forward** — see below. Web deploy not started. |
+
+## Phase 7, worker only — brought forward
+
+Deployed ahead of schedule because **the live-path question needs days of uptime and a
+laptop cannot provide it**: on the laptop, all three real messages arrived by poll and
+none live, while the Telegram connection dropped repeatedly — the network and the handler
+could not be told apart. The web app stays local.
+
+Before deploying:
+- [x] Liveness moved out of the database. Measured: `dbQueries` flat for 7 minutes of
+      polling; Neon dev compute went idle and stayed idle.
+- [x] Secrets redacted from all logs; tested with canary secrets on two error paths.
+- [x] Every message records its path (LIVE / POLL / CATCHUP / BACKFILL) and lag.
+- [x] Poll re-reads 50 ids below the cursor — a message missed live is no longer lost
+      when a later one arrives live.
+- [x] @MemesDontLies added as OBSERVE: measured, never written to the database.
+- [ ] Railway deploy — pending account token
+- [ ] 24-hour report: messages by path, median/worst lag per path, update-loop
+      timeouts under real traffic, Neon compute hours consumed
+
+## Phase 1 — what was actually observed
+
+Built and run against the dev branch with both real channels. Being precise about
+which parts were *seen* working and which were not:
+
+**Observed**
+- Backfill: 200 messages from each channel. 26 calls from the private channel
+  and 22 from the public one, all `source = BACKFILL`, called-at market cap null.
+  Every count matches the Day 0 predictions exactly: 26 + 22 calls, one re-post
+  recorded as an event rather than a second call, 5 + 2 milestones left
+  unattached rather than guessed, 26 commentary messages stitched.
+- Kill and restart loses nothing — twice. An early run was killed at message 143
+  of 200; the restart reused every row it had made and finished with zero
+  duplicates. Then a deliberate `kill -9` mid-backfill, part-way through a
+  chunk: the restart logged `resumed after #7517`, processed only the remaining
+  150 messages, and the final state was identical to the pre-crash baseline row
+  for row (22 calls, 69 events, 200 seen, 0 duplicate events, all BACKFILL).
+- `/health` caught a real bug on its first outing — a false 503 during startup,
+  which on Railway/Fly would have restarted the worker mid-backfill, forever.
+  Fixed; now 200 with both channels polled every ~60s, while their newest
+  messages are 6h and 26h old. Quiet is not dead, and the check knows it.
+- Neon cold starts (7-15s) survived on every start.
+- 22/22 tests pass, including feeding the same batch twice.
+
+**Not yet observed**
+- **A live message arriving.** Neither channel posted while the worker ran. The
+  live handler shares its entire processing path with the backfill, which is
+  heavily exercised; what is untested is the event wiring — `chatId` routing was
+  checked against the GramJS source, not against a real message. Leave the worker
+  running through a posting window and watch for a `[live]` line.
+- A Telegram disconnect and reconnect. The 60s poll re-catches-up regardless,
+  which is the safety net; `reconnects` on the heartbeat is still 0.
 
 ## Scaffold (not a phase — plumbing only)
 
@@ -51,7 +103,6 @@ reading diffs.
    product you sell to them or one you run yourself. **Still open.**
 3. ~~Solana only, or will calls span chains?~~ They span chains. Six EVM calls
    in 400 messages, across at least BNB and HyperEVM. `Token.chain` added.
-4. **New.** `<private-channel>` posts the caller's opinion as a separate message seconds
-   after the bare address ("gamble", "Got in 14k", "Look for entry"). Stitching
-   those onto the call is a Phase 1 ingest decision — what time window, and what
-   happens when two calls land a minute apart.
+4. ~~Stitching the private channel's separate commentary messages~~ Decided: a
+   90-second window, measured from the dump, never writing a number. See
+   DECISIONS.md.

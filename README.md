@@ -16,10 +16,16 @@ docs/         plan, decisions, status
 
 ```bash
 npm install
-cp .env.example .env
+cp .env.example .env          # then fill it in — see below
 npm run db:generate
 npm run db:push
+npm run seed:channels         # CHANNEL_<n>_* from .env -> Channel rows
+npm run dev:worker            # catch up, then listen. Refuses the production branch.
 ```
+
+The worker serves `GET /health` on `$PORT` (default 8080): 200 while ingestion is
+alive, 503 when the heartbeat or any channel's last poll is older than 180s. A
+channel that is merely quiet stays healthy — see `docs/DECISIONS.md`.
 
 Fill in `.env` yourself. Every value in it is yours, not shared:
 
@@ -29,7 +35,10 @@ Fill in `.env` yourself. Every value in it is yours, not shared:
 - `DATABASE_URL` / `DIRECT_URL` — your own Neon branch. Pooled and non-pooled
   hostnames of the same database; migrations need the non-pooled one.
 - `TG_SESSION` — printed by `npm run tg:login` below. It is full access to the
-  Telegram account that runs it. Treat it as a password.
+  Telegram account that runs it. Treat it as a password. Never run two processes
+  on the same session at once; Telegram may revoke it.
+- `CHANNEL_<n>_ID` / `_KIND` / `_NAME` / `_USERNAME` — the channels to watch.
+  Seeded into the database; the worker reads the table, never these values.
 
 ## Day 0 — do this before writing product code
 
