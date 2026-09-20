@@ -32,6 +32,17 @@ enum ChannelKind {
   NARRATIVE
 }
 
+/// Whether a channel's calls count.
+///   TRACK    ingested, stored, and part of the public track record.
+///   OBSERVE  watched for ingestion measurements only (live vs poll, latency).
+///            Nothing it posts is written to the database, so nothing it posts
+///            can reach the track record — by construction, not by a filter
+///            someone has to remember to apply in Phase 6.
+enum ChannelRole {
+  TRACK
+  OBSERVE
+}
+
 /// Channels are CONFIGURATION, not code. Adding the second channel is an
 /// insert, not a deploy. The worker reads this table on start and reloads it.
 model Channel {
@@ -42,14 +53,26 @@ model Channel {
   username      String?
   displayName   String
   /// Which rule set the classifier applies. Configuration, like the row itself.
+  /// Unused for OBSERVE channels, whose messages are never classified into rows.
   kind          ChannelKind
+  role          ChannelRole @default(TRACK)
   active        Boolean  @default(true)
   /// Set once the historical backfill has run for this channel.
   backfilledAt  DateTime?
   addedAt       DateTime @default(now())
 
-  calls  Call[]
-  events CallEvent[]
+  /// Catch-up high-water mark: the highest Telegram message id we have
+  /// processed for this channel. On reconnect we fetch everything above it.
+  /// Null means nothing processed yet, which is what triggers the backfill.
+  lastSeenMessageId BigInt?
+  /// When that message was posted. Old is NORMAL — a quiet channel is quiet.
+  /// When we last polled Telegram is deliberately NOT stored: writing it on
+  /// every poll kept Neon awake around the clock. It lives in process memory.
+  lastSeenAt        DateTime?
+
+  calls    Call[]
+  events   CallEvent[]
+  messages SeenMessage[]
 
   @@index([active])
 }
@@ -91,6 +114,14 @@ enum CallStatus {
   CLOSED_MANUAL
 }
 
+/// Whether we watched the call land or reconstructed it from history.
+/// A backfilled call is real, but we were not there for it: its called-at
+/// market cap has to be rebuilt (Phase 2) and can never be as good as measured.
+enum CallSource {
+  LIVE
+  BACKFILL
+}
+
 model Call {
   id        String   @id @default(cuid())
   tokenId   String
@@ -100,6 +131,9 @@ model Call {
 
   /// When the call landed in the channel (message timestamp, not ingest time).
   calledAt  DateTime
+  /// LIVE if the listener saw it arrive; BACKFILL if it was read out of
+  /// history when the channel was switched on.
+  source    CallSource @default(LIVE)
   /// Telegram message id of the first sighting.
   messageId BigInt
 
@@ -139,14 +173,19 @@ enum CallEventKind {
   FIRST_CALL
   CHANNEL_MILESTONE   // the channel's own "we hit 3x" post
   REPOST
-  UNCLASSIFIED
+  SCANNER_CARD        // a third party's bot card about a token we track
+  COMMENTARY          // chatter posted moments after a BARE_CA call
+  UNCLASSIFIED        // a milestone we could not attribute. callId is null.
 }
 
 model CallEvent {
   id        String        @id @default(cuid())
-  callId    String
+  /// NULL when we could not attribute the message to a call. We still keep the
+  /// row: the raw text is evidence, and a parent we cannot identify today may
+  /// be identifiable later. What we never do is guess one.
+  callId    String?
   channelId String
-  call      Call          @relation(fields: [callId], references: [id], onDelete: Cascade)
+  call      Call?         @relation(fields: [callId], references: [id], onDelete: Cascade)
   channel   Channel       @relation(fields: [channelId], references: [id])
 
   kind      CallEventKind
@@ -155,6 +194,11 @@ model CallEvent {
   /// Raw message text, kept verbatim. We never lose the source.
   rawText   String
   hasMedia  Boolean       @default(false)
+  /// The message this one replied to, kept so a reply CHAIN can be walked
+  /// later: a milestone often replies to another milestone, which replies to
+  /// the call. Without this the chain can only be walked while the batch is
+  /// still in memory.
+  replyToMessageId BigInt?
   /// Multiple the channel CLAIMED, when parseable. Ours is measured separately.
   claimedMultiple Decimal? @db.Decimal(12, 2)
 
@@ -186,6 +230,53 @@ model PriceSnapshot {
   volume24hUsd Decimal? @db.Decimal(20, 4)
 
   @@index([tokenId, at])
+}
+
+/// How a message reached the worker.
+///   LIVE      Telegram pushed it (the NewMessage event handler)
+///   POLL      the 60s poll found it — the live path did not deliver it first
+///   CATCHUP   read on startup or reconnect, after time we were not listening
+///   BACKFILL  read from history when the channel was first switched on
+/// POLL is the number to watch: every POLL row is a message the live path
+/// missed or delivered late.
+enum IngestPath {
+  LIVE
+  POLL
+  CATCHUP
+  BACKFILL
+}
+
+/// Every message the listener has looked at, whatever we decided about it.
+///
+/// This exists for one reason: reply chains. A milestone usually replies to
+/// another message rather than to the call — "3x" (1240) replies to a photo
+/// (1237) which replies to the call (1234). If the intermediate message is not
+/// stored, the chain dead-ends and the milestone attaches to nothing. Storing
+/// only the messages we acted on breaks exactly the link we rely on most: 28 of
+/// 31 milestones in the public channel resolve by reply.
+///
+/// It doubles as the precise record of what has been processed, which is what
+/// makes replay after a crash cheap to reason about.
+model SeenMessage {
+  id               String   @id @default(cuid())
+  channelId        String
+  channel          Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  messageId        BigInt
+  postedAt         DateTime
+  replyToMessageId BigInt?
+  /// Database time the row was written: "our write". writeLag is
+  /// processedAt - postedAt, and includes any Neon cold start.
+  processedAt      DateTime @default(now())
+  /// Which path delivered the message first. Null for rows from before this
+  /// was recorded.
+  ingestPath       IngestPath?
+  /// Worker clock when the message reached our code, before any database
+  /// work. receivedLag is receivedAt - postedAt: how fast Telegram got it to
+  /// us, with the database taken out of the number.
+  receivedAt       DateTime?
+
+  @@unique([channelId, messageId])
+  @@index([channelId, postedAt])
 }
 
 model User {
