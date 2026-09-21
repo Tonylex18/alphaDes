@@ -90,7 +90,15 @@ model Token {
   id              String   @id @default(cuid())
   /// Solana base58 (32 decoded bytes) or EVM 0x-hex. See Chain.
   address         String   @unique
+  /// What the ADDRESS FORMAT tells us, and no more.
   chain           Chain
+  /// The specific chain, resolved from a metadata lookup: "solana", "bsc",
+  /// "hyperevm", "robinhood", "base"... SOLANA|EVM is too coarse to query a
+  /// price with — five EVM tokens in the dumps live on three different chains.
+  /// Kept separate from `chain` because one is a fact about the string and the
+  /// other is something a third party told us. Null until resolved.
+  dexChainId      String?
+  chainResolvedAt DateTime?
   symbol          String?
   name            String?
   imageUrl        String?
@@ -138,10 +146,27 @@ model Call {
   messageId BigInt
 
   /// THE number that cannot be reconstructed later. Everything on the site is
-  /// a multiple of this. Captured at ingestion; for backfilled calls, rebuilt
-  /// from GeckoTerminal OHLCV and marked below.
+  /// a multiple of this. Captured on the ingest path the moment the Call is
+  /// created; for backfilled calls, rebuilt from GeckoTerminal OHLCV and
+  /// marked below. Written once and never overwritten — later polls move
+  /// latest/peak and nothing else.
   calledAtMarketCapUsd  Decimal? @db.Decimal(20, 4)
+  /// WHEN the observation behind that number was taken. Ingest takes ~0.6s but
+  /// a price lookup takes longer and may be served from a cache, so the record
+  /// says how long after the call we actually looked. An entry price with no
+  /// timestamp is unfalsifiable.
+  marketCapObservedAt   DateTime?
+  /// How it was obtained, exactly: "dexscreener:pair <addr> at ingest",
+  /// "geckoterminal:ohlcv 1m close". Prose on purpose — a boolean cannot say
+  /// which candle a reconstruction used.
+  marketCapSource       String?
+  /// True when the number was reconstructed rather than measured at call time.
+  /// Reconstructed and measured numbers must never be presented as the same
+  /// thing. Rule 3 in CLAUDE.md.
   marketCapIsBackfilled Boolean  @default(false)
+  /// Set when we tried and failed, so a null is a recorded outcome rather than
+  /// an absence somebody later fills in with a guess.
+  marketCapNullReason   String?
 
   /// What the CALLER said the market cap was ("Rn at 87k MC" -> 87000). A
   /// claim, not a measurement. Kept strictly separate from the field above and
@@ -155,6 +180,10 @@ model Call {
   peakAt              DateTime?
   latestMarketCapUsd  Decimal?  @db.Decimal(20, 4)
   latestAt            DateTime?
+  /// Consecutive polls that found the token dead by some rule. A single bad
+  /// observation is an API blip, not a rug, so a call is only closed once the
+  /// same verdict repeats.
+  deadStrikes         Int       @default(0)
 
   status      CallStatus @default(ACTIVE)
   closedAt    DateTime?
@@ -219,10 +248,15 @@ model Narrative {
   generatedAt DateTime @default(now())
 }
 
+/// A price observation, written in batches. The poller holds observations in
+/// memory and flushes on a slow cadence or on meaningful change: a snapshot
+/// every 30s per token would keep Neon awake permanently, which is the trap
+/// the heartbeat was moved out of the database to avoid.
 model PriceSnapshot {
   id           String   @id @default(cuid())
   tokenId      String
   token        Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  /// When the observation was TAKEN (not when the row was written).
   at           DateTime @default(now())
   marketCapUsd Decimal? @db.Decimal(20, 4)
   priceUsd     Decimal? @db.Decimal(30, 18)
