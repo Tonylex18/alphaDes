@@ -42,6 +42,7 @@ Set these in the Railway dashboard. **No secret belongs in the repo.**
 | `POLL_INTERVAL_MS` | `60000`. Leave it. A faster poll would do the live handler's job and hide it being dead — which is what we are measuring. |
 | `STARTUP_DELAY_MS` | `20000` on Railway. See "Redeploys". |
 | `CHANNEL_<n>_ID` / `_KIND` / `_NAME` / `_USERNAME` / `_ROLE` | Only read by `npm run seed:channels`. The worker reads the `Channel` table, never these. Setting them on Railway is optional. |
+| `ANTHROPIC_API_KEY` | Narrative generation (Phase 3). Without it the worker runs normally and simply writes no generated narratives — it never invents one. |
 | `PORT` | Railway injects it. Do not set it. |
 
 The worker scrubs `TG_SESSION`, `TG_API_HASH` and both database URLs — and a database
@@ -113,6 +114,16 @@ npm run market:reconstruct
 `market:reconstruct` is resumable — it only selects calls still missing a price — and
 slow by design, because GeckoTerminal allows 10 calls a minute. It never overwrites a
 measured number.
+
+## Narratives (Phase 3)
+
+```bash
+npm run narrative:generate -- --dry-run    # what would be read, spends nothing
+npm run narrative:generate                 # needs ANTHROPIC_API_KEY
+```
+
+Generation only ever touches tokens with no narrative at all, so the caller's own words
+are never replaced and nothing is regenerated. Writes are batched into one round trip.
 
 ## After deploying
 

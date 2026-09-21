@@ -8,11 +8,29 @@ reading diffs.
 | 0 | Read both channels, write classifier from real messages | **DONE** |
 | 1 | Ingestion — listener, channels table, call/event model, backfill | **BUILT — live capture not yet observed** |
 | 2 | Market data — DexScreener polling, mcap capture, dead detection | **BUILT — see Phase 2 below** |
-| 3 | Narrative — socials -> 2-3 sentences, generated once | Not started |
+| 3 | Narrative — socials -> 2-3 sentences, generated once | **BUILT — generation run needs an API key** |
 | 4 | Auth + feed — Privy email login, live feed | Not started |
 | 5 | Journal — log a play, entry-vs-call multiple | Not started |
 | 6 | Public track record + landing page | Not started |
 | 7 | Deploy and harden | **Worker deploy brought forward** — see below. Web deploy not started. |
+
+## Phase 3 — narrative
+
+- [x] Caller's words kept as the narrative, labelled CALLER, never rewritten. 9 of them.
+- [x] Three states in one column (CALLER / GENERATED / NONE) with a reason on every NONE.
+- [x] Write-once enforced by the unique constraint on `Narrative.tokenId`; tested.
+- [x] Generation restricted to the token's own domains via `web_fetch` `allowed_domains`.
+- [x] Socials backfilled — Phase 2 had stored none. 29 of 55 tokens now have a link.
+- [x] Wired to the ingest path via the capture queue; batched writes in the bulk script.
+- [ ] **A generation run — needs `ANTHROPIC_API_KEY`** (not set locally or on Railway)
+
+Where the 55 calls stand before any generation:
+
+| | |
+|---|---|
+| CALLER (the channel's own prose) | 9 |
+| no narrative row yet | 46 — of which 23 have their own pages to read |
+| would be recorded NONE without an API call | 23 (no website, X or Telegram at all) |
 
 ## Phase 2 — market data
 

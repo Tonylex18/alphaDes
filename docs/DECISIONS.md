@@ -378,3 +378,48 @@ caller stated a figure themselves, the median disagreement with our reconstructi
 9%, and five are within 3%. That is the only independent check available — the caller's
 number is a claim and is never merged into ours — but it is written by someone who was
 there, and it is what caught both pool-side bugs.
+
+## Phase 3 — narrative
+
+**The channel's own words win, and the code never has to know that.** A NARRATIVE-kind
+call writes the caller's prose as the Narrative at ingest. Generation asks one question
+— "does this token already have a narrative?" — and skips it if so. Nothing branches on
+channel kind: the inversion is enforced by the data, which is why it cannot drift.
+
+**Three states, in one column.** `Narrative.source` is CALLER, GENERATED or NONE, and a
+NONE row carries `nullReason` and a null summary. A reader can always tell "the caller
+said this" from "we summarised the project's own pages" from "we have nothing", and the
+card cannot blur them because they are not the same value.
+
+**A recorded NONE is a decision, not a gap to retry forever.** It is a row, so the token
+is no longer a candidate. Re-running the generator does not re-bill for tokens that had
+nothing to say last time.
+
+**Written once, enforced by the unique constraint.** `Narrative.tokenId` is unique and
+the code only ever *creates*. A second attempt fails at the database rather than
+rewriting history — the same shape of guarantee as `calledAtMarketCapUsd`, for the same
+reason: the narrative records what was claimed at call time.
+
+**Sourced from the project's own pages, and technically incapable of anything else.**
+Generation uses Claude's `web_fetch` tool with `allowed_domains` set to the hostnames of
+*that token's own* website, X and Telegram links. It cannot search, cannot read another
+project, and cannot fall back on what the model happens to know about a ticker. If those
+pages say nothing, the model is instructed to reply `INSUFFICIENT:` and the run records
+NONE. An invented narrative is the worst possible failure for this product, so the
+defence is structural rather than a line in a prompt.
+
+**Model and settings: `claude-opus-5`, effort `low`, max 500 tokens.** Effort low
+because this is summarising a page we hand it, not a reasoning problem. Cost is computed
+from `usage` at list price ($5/$25 per Mtok) and stored per narrative, so a run's bill is
+a recorded fact rather than an estimate.
+
+**Phase 2 had not actually stored the socials.** It wrote them only on the live capture
+path, and no call was ever captured live, so all 55 tokens had none — the thing Phase 3
+is supposed to read did not exist. The poller now persists metadata alongside every
+price observation, and `npm run market:metadata` backfills. After it ran, 29 of 55
+tokens have at least one of their own links.
+
+**Generation on the live path hangs off capture, not off ingest.** Capture is what
+stores the socials, so the narrative queue is triggered by a successful capture. It is
+fire-and-forget: the call row and its market cap are already written, and a story
+arriving a few seconds later is not worth holding the ingest path for.
