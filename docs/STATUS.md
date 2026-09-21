@@ -31,6 +31,17 @@ Built on top of a live ingest path measured at 0.64s median (10 live / 1 poll).
       `marketCapIsBackfilled`, with the candle resolution recorded.
 - [ ] Deployed to Railway (needs a redeploy carrying Phase 2)
 
+Measured after the first full run (55 calls):
+
+| | |
+|---|---|
+| with a called-at market cap | 39 of 55 (71%), all reconstructed and flagged |
+| measured at ingestion | 0 — Phase 2 is not deployed yet, so no call has been witnessed with it running |
+| agreement with the callers' own figures | median 9% across the 12 who stated one |
+| still null | 16, each with a recorded reason |
+| closed dead by the poller | 13, all "no pair on DexScreener" |
+| Neon while polling | idle; one flush per 15 min wakes it ~5 min |
+
 `npm run market:report` prints the state of every number above.
 
 ## Phase 7, worker only — brought forward

@@ -350,3 +350,31 @@ Missing liquidity is NOT pulled liquidity — DexScreener returns null liquidity
 healthy pairs, measured on one of our own tokens, and treating that as a rug would close
 live calls. A closed call stops being polled but stays in the database and on the board,
 per rule 5.
+
+**Measured: the price loop lets Neon sleep two thirds of the time.** Sampling the dev
+compute's state once a minute for 20 minutes while the poller tracked 55 calls:
+
+```
+t+0..4    active     (startup: 6 queries to load state, then Neon's 5min suspend timer)
+t+5..13   idle       9 minutes of polling 55 tokens, dbQueries frozen at 6
+t+14..18  active     the 15-minute flush: 37 calls + 25 snapshots, 40 queries, one round trip
+t+19      idle
+```
+
+10 samples active, 10 idle. The startup burst is one-off; the steady state is one flush
+per 15 minutes and Neon's 5-minute idle timer, so **about 5 minutes awake in every 15 —
+a third of the time**, or roughly 8 hours a day at 0.25 CU. `MARKET_FLUSH_INTERVAL_MS`
+is the dial: 30 minutes would halve it, at the cost of the site's "latest" figure being
+up to half an hour stale. Note this is the price loop alone; ingestion writes on top of
+it whenever a call arrives.
+
+Neon's own `active_time_seconds` counter was NOT used for this: it reported +3,816
+seconds across a 1,810-second window, which is impossible for a single compute, so the
+counter is evidently aggregated with a lag. Sampling the compute's state is a direct
+measurement; the counter would have been a wrong one.
+
+**Measured: reconstruction agrees with the callers.** Across the 12 calls where the
+caller stated a figure themselves, the median disagreement with our reconstruction is
+9%, and five are within 3%. That is the only independent check available — the caller's
+number is a claim and is never merged into ours — but it is written by someone who was
+there, and it is what caught both pool-side bugs.
