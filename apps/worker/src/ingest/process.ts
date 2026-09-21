@@ -48,7 +48,7 @@ export type EventKind =
   | "UNCLASSIFIED";
 
 export type Outcome =
-  | { action: "call_created"; callId: string; address: string }
+  | { action: "call_created"; callId: string; address: string; tokenId: string; dexChainId: string | null }
   | { action: "call_reposted"; callId: string; address: string }
   | { action: "milestone_attached"; callId: string; via: string }
   | { action: "milestone_unattached" }
@@ -230,7 +230,7 @@ export async function processMessage(
         ...base,
         outcome:
           kind === "FIRST_CALL"
-            ? { action: "call_created", callId: existing.callId, address }
+            ? { action: "call_created", callId: existing.callId, address, tokenId, dexChainId: null }
             : { action: "call_reposted", callId: existing.callId, address },
       };
     }
@@ -283,7 +283,7 @@ export async function processMessage(
       state.tokensWithNarrative.add(tokenId);
     }
 
-    return { ...base, outcome: { action: "call_created", callId: call.id, address } };
+    return { ...base, outcome: { action: "call_created", callId: call.id, address, tokenId, dexChainId: null } };
   }
 
   // ---- a milestone --------------------------------------------------------

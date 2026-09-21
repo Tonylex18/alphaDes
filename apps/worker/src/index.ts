@@ -29,7 +29,9 @@ import { prisma, type Channel } from "@alphades/db";
 import { startHealthServer } from "./health.js";
 import { waitForDatabase } from "./lib/db-wake.js";
 import { loadChannelState } from "./ingest/state.js";
-import { attachLive, primeObserver, sweep } from "./listener.js";
+import { attachLive, primeObserver, setCallCreatedHook, sweep } from "./listener.js";
+import { CaptureQueue } from "./market/capture.js";
+import { FLUSH_INTERVAL_MS, MarketPoller } from "./market/poller.js";
 import {
   worker,
   newChannelRuntime,
@@ -58,6 +60,10 @@ process.on("unhandledRejection", (e) => {
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 60_000);
 const STARTUP_DELAY_MS = Number(process.env.STARTUP_DELAY_MS ?? 0);
 const STATS_INTERVAL_MS = Number(process.env.STATS_INTERVAL_MS ?? 15 * 60_000);
+/// How often the poller LOOKS. It looks in memory; what it writes is governed
+/// by the flush interval, which is much slower. See market/poller.ts.
+const MARKET_TICK_MS = Number(process.env.MARKET_TICK_MS ?? 15_000);
+const MARKET_ENABLED = process.env.MARKET_ENABLED !== "false";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -129,6 +135,20 @@ async function main() {
     }
   }
 
+  // ---- 6b. market data ------------------------------------------------------
+  const captures = new CaptureQueue(prisma);
+  const poller = new MarketPoller(prisma);
+  if (MARKET_ENABLED) {
+    // Capture the called-at market cap the moment a call is created, and start
+    // polling it. Both are no-ops for calls we did not witness.
+    setCallCreatedHook((t) => {
+      captures.enqueue(t);
+      poller.track({ ...t, calledAtMarketCapUsd: null });
+    });
+    const tracked = await poller.load();
+    console.log(`[market] polling ${tracked} open call(s); flush every ${FLUSH_INTERVAL_MS / 60_000}min`);
+  }
+
   // ---- 7. live -------------------------------------------------------------
   let reconnectSweep: Promise<void> | null = null;
   attachLive(prisma, client, () => {
@@ -161,12 +181,44 @@ async function main() {
     process.exit(1);
   }, 60_000);
 
-  const stats = setInterval(() => console.log(statsLine()), STATS_INTERVAL_MS);
+  const stats = setInterval(() => {
+    console.log(statsLine());
+    if (MARKET_ENABLED) console.log(poller.statsLine());
+  }, STATS_INTERVAL_MS);
+
+  // The price loop. Polling is in memory; flushing is what touches Neon, and it
+  // is deliberately far slower.
+  let pollingMarket = false;
+  const market = setInterval(async () => {
+    if (!MARKET_ENABLED || pollingMarket) return;
+    pollingMarket = true;
+    try {
+      await poller.poll();
+    } catch (e) {
+      console.error(`[market] poll failed: ${String((e as Error)?.message ?? e).split("\n")[0]}`);
+      noteError(e);
+    } finally {
+      pollingMarket = false;
+    }
+  }, MARKET_TICK_MS);
+
+  const marketFlush = setInterval(async () => {
+    if (!MARKET_ENABLED) return;
+    try {
+      await poller.flush();
+    } catch (e) {
+      console.error(`[market] flush failed: ${String((e as Error)?.message ?? e).split("\n")[0]}`);
+      noteError(e);
+    }
+  }, FLUSH_INTERVAL_MS);
 
   const shutdown = async (signal: string) => {
     console.log(`[worker] ${signal} — shutting down`);
     console.log(statsLine());
-    for (const t of [tick, poll, watchdog, stats]) clearInterval(t);
+    if (MARKET_ENABLED) console.log(poller.statsLine());
+    for (const t of [tick, poll, watchdog, stats, market, marketFlush]) clearInterval(t);
+    // Do not lose observations held in memory because the process is stopping.
+    if (MARKET_ENABLED) await poller.flush().catch(() => {});
     server.close();
     await client.disconnect().catch(() => {});
     await prisma.$disconnect().catch(() => {});

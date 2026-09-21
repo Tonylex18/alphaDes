@@ -106,8 +106,13 @@ after(async () => {
     await prisma.call.deleteMany({ where: { channelId } });
     await prisma.channel.delete({ where: { id: channelId } }).catch(() => {});
   }
-  // Tokens are shared across channels, so only remove ones left orphaned.
-  await prisma.token.deleteMany({ where: { calls: { none: {} }, narrative: null, snapshots: { none: {} } } });
+  // Tokens are shared across channels, so only remove ones left orphaned by
+  // THIS suite. A global "every token with no calls" delete would eventually
+  // reach real data — it has been harmless only because every real token
+  // currently has a call.
+  await prisma.token.deleteMany({
+    where: { address: { startsWith: "TEST" }, calls: { none: {} }, narrative: null, snapshots: { none: {} } },
+  });
   await prisma.$disconnect();
 });
 

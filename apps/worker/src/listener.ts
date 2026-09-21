@@ -21,6 +21,7 @@ import type { PrismaClient } from "@alphades/db";
 
 import { processBatch, type IncomingMessage, type ProcessResult } from "./ingest/process.js";
 import { withTransientRetry } from "./lib/db-wake.js";
+import type { CaptureTarget } from "./market/capture.js";
 import {
   worker,
   withChannelLock,
@@ -66,6 +67,14 @@ function summarise(results: ProcessResult[]): string {
     .map(([k, v]) => `${k}=${v}`);
   if (counts.ignored) parts.push(`ignored=${counts.ignored}`);
   return parts.join(" ") || "nothing";
+}
+
+/// Set by index.ts. Called with every call the ingest path creates, so its
+/// market cap is captured immediately rather than on a later sweep — the one
+/// number that cannot be corrected afterwards.
+let onCallCreated: ((t: CaptureTarget) => void) | null = null;
+export function setCallCreatedHook(fn: (t: CaptureTarget) => void) {
+  onCallCreated = fn;
 }
 
 const entities = new Map<string, unknown>();
@@ -138,6 +147,25 @@ export async function ingest(
     if (path === "BACKFILL") {
       await prisma.channel.update({ where: { id: rt.channel.id }, data: { backfilledAt: new Date() } });
       rt.channel.backfilledAt = new Date();
+    }
+
+    // Capture runs off this path: the first attempt is immediate, but retries
+    // for an unindexed token last minutes, and the channel lock we are holding
+    // must not be held for minutes.
+    if (onCallCreated) {
+      const byId = new Map(fresh.map((m) => [m.messageId, m]));
+      for (const r of results) {
+        if (r.outcome.action !== "call_created") continue;
+        const m = byId.get(r.messageId);
+        if (!m) continue;
+        onCallCreated({
+          callId: r.outcome.callId,
+          tokenId: r.outcome.tokenId,
+          address: r.outcome.address,
+          dexChainId: r.outcome.dexChainId,
+          calledAt: m.postedAt,
+        });
+      }
     }
 
     const secs = ((Date.now() - started) / 1000).toFixed(1);
