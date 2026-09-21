@@ -178,7 +178,12 @@ export class CaptureQueue {
   private running = new Set<string>();
   readonly results: CaptureResult[] = [];
 
-  constructor(private prisma: PrismaClient) {}
+  /// Called with the token id once its metadata — including the socials — has
+  /// been stored. Phase 3 hangs the narrative generation off this.
+  constructor(
+    private prisma: PrismaClient,
+    private afterCapture?: (tokenId: string) => void,
+  ) {}
 
   enqueue(t: CaptureTarget): void {
     if (this.running.has(t.callId)) return;
@@ -199,6 +204,8 @@ export class CaptureQueue {
             `[capture] ${t.address.slice(0, 10)}… $${r.marketCapUsd.toLocaleString()} ` +
               `observed ${(r.lagMs / 1000).toFixed(1)}s after the call (attempt ${r.attempts})`,
           );
+          // The socials are stored now, so the narrative has something to read.
+          this.afterCapture?.(t.tokenId);
         } else {
           console.warn(`[capture] ${t.address.slice(0, 10)}… no market cap: ${r.reason}`);
         }

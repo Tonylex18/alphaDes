@@ -30,7 +30,9 @@ import { startHealthServer } from "./health.js";
 import { waitForDatabase } from "./lib/db-wake.js";
 import { loadChannelState } from "./ingest/state.js";
 import { attachLive, primeObserver, setCallCreatedHook, sweep } from "./listener.js";
+import Anthropic from "@anthropic-ai/sdk";
 import { CaptureQueue } from "./market/capture.js";
+import { NarrativeQueue } from "./narrative/queue.js";
 import { FLUSH_INTERVAL_MS, MarketPoller } from "./market/poller.js";
 import {
   worker,
@@ -136,7 +138,16 @@ async function main() {
   }
 
   // ---- 6b. market data ------------------------------------------------------
-  const captures = new CaptureQueue(prisma);
+  // Narrative generation needs a key. Without one the worker runs exactly as
+  // before and simply writes no generated narratives — it does not invent any.
+  const narratives = process.env.ANTHROPIC_API_KEY
+    ? new NarrativeQueue(prisma, new Anthropic())
+    : null;
+  if (!narratives) {
+    console.warn("[narrative] ANTHROPIC_API_KEY not set — narratives will not be generated");
+  }
+
+  const captures = new CaptureQueue(prisma, (tokenId) => narratives?.enqueue(tokenId));
   const poller = new MarketPoller(prisma);
   if (MARKET_ENABLED) {
     // Capture the called-at market cap the moment a call is created, and start
@@ -184,6 +195,7 @@ async function main() {
   const stats = setInterval(() => {
     console.log(statsLine());
     if (MARKET_ENABLED) console.log(poller.statsLine());
+    if (narratives) console.log(narratives.statsLine());
   }, STATS_INTERVAL_MS);
 
   // The price loop. Polling is in memory; flushing is what touches Neon, and it

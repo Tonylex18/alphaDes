@@ -280,6 +280,28 @@ export class MarketPoller {
           },
         }),
       );
+      if (t.latest?.symbol || t.latest?.websiteUrl || t.latest?.twitterUrl || t.latest?.telegramUrl) {
+        // Metadata is free — it rides along on a price observation we already
+        // made. Phase 3 needs the socials, and only a live capture stored them
+        // before, which meant none were ever stored at all.
+        writes.push(
+          this.prisma.token.update({
+            where: { id: t.tokenId },
+            data: {
+              dexChainId: t.latest.dexChainId,
+              chainResolvedAt: t.latest.observedAt,
+              poolAddress: t.latest.pairAddress ?? undefined,
+              symbol: t.latest.symbol ?? undefined,
+              name: t.latest.name ?? undefined,
+              imageUrl: t.latest.imageUrl ?? undefined,
+              websiteUrl: t.latest.websiteUrl ?? undefined,
+              twitterUrl: t.latest.twitterUrl ?? undefined,
+              telegramUrl: t.latest.telegramUrl ?? undefined,
+              metadataFetched: true,
+            },
+          }),
+        );
+      }
       if (t.latest) {
         snapshots.push({
           tokenId: t.tokenId,
