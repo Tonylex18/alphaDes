@@ -8,22 +8,25 @@
     "login": "tsx src/scripts/login.ts",
     "channels": "tsx src/scripts/list-channels.ts",
     "dump": "tsx src/scripts/dump-messages.ts",
-    "test": "node --import tsx --test src/ingest/*.test.ts src/lib/*.test.ts src/market/*.test.ts",
+    "test": "node --import tsx --test src/ingest/*.test.ts src/lib/*.test.ts src/market/*.test.ts src/narrative/*.test.ts",
     "seed:channels": "tsx src/scripts/seed-channels.ts",
     "report": "tsx src/scripts/ingest-report.ts",
     "market:reconstruct": "tsx src/scripts/reconstruct-backfill.ts",
     "market:report": "tsx src/scripts/market-report.ts",
-    "market:poll": "tsx src/scripts/market-poll-only.ts"
+    "market:poll": "tsx src/scripts/market-poll-only.ts",
+    "market:metadata": "tsx src/scripts/refresh-metadata.ts",
+    "narrative:generate": "tsx src/scripts/generate-narratives.ts"
   },
   "dependencies": {
     "@alphades/db": "*",
-    "telegram": "^2.25.4",
-    "input": "^1.0.1",
+    "@anthropic-ai/sdk": "^0.127.0",
     "dotenv": "^16.4.5",
+    "input": "^1.0.1",
+    "telegram": "^2.25.4",
     "tsx": "^4.19.1"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "@types/node": "^22.7.5"
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.3"
   }
 }
