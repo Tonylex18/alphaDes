@@ -235,16 +235,44 @@ model CallEvent {
   @@index([callId, postedAt])
 }
 
-/// Generated once from the token's own socials, then never regenerated.
-/// The narrative is a record of what was claimed AT CALL TIME.
+/// Three states, never blurred. A reader must be able to tell which one a card
+/// is showing.
+///   CALLER     the channel's own words at call time. Better evidence than
+///              anything we would synthesise, and free. Never rewritten.
+///   GENERATED  summarised by us FROM THE PROJECT'S OWN SOCIALS, for calls that
+///              arrived as a bare address with no context.
+///   NONE       we tried and had nothing to work from. summary is null and
+///              nullReason says why. An invented narrative is the worst
+///              possible failure for this product; a missing one is honest.
+enum NarrativeSource {
+  CALLER
+  GENERATED
+  NONE
+}
+
+/// Written once per token and never regenerated. The narrative records what was
+/// claimed AT CALL TIME — regenerating it later would quietly rewrite history,
+/// the same failure as overwriting calledAtMarketCapUsd.
 model Narrative {
   id          String   @id @default(cuid())
   tokenId     String   @unique
   token       Token    @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-  summary     String
+  source      NarrativeSource @default(CALLER)
+  /// Null only when source is NONE.
+  summary     String?
+  /// Why there is nothing, when there is nothing.
+  nullReason  String?
   /// Where the text came from, shown on the card as a label.
   sourceNote  String   @default("Summarised from the project's own socials")
+  /// The project's own pages this was read from. Empty for CALLER: the caller
+  /// IS the source. Lets a reader check the claim against what it summarised.
+  sourceUrls  String[]
   model       String?
+  /// What the generation cost, per token, so a run's bill is a fact and not an
+  /// estimate.
+  inputTokens  Int?
+  outputTokens Int?
+  costUsd      Decimal? @db.Decimal(12, 6)
   generatedAt DateTime @default(now())
 }
 
