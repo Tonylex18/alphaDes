@@ -90,6 +90,30 @@ npm run seed:channels
 `role = OBSERVE` channels are watched for ingestion measurements only. Nothing they
 post is written to the database, so nothing they post can reach the track record.
 
+## Market data (Phase 2)
+
+Runs inside the worker: prices are polled in memory and flushed to the database on a
+slow cadence. Environment variables, all optional:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `MARKET_ENABLED` | on | Set to `false` to run ingestion without the price loop. |
+| `MARKET_TICK_MS` | `15000` | How often the poller LOOKS. Cheap: in memory. |
+| `MARKET_FLUSH_INTERVAL_MS` | `900000` | How often it WRITES. This is the Neon dial — longer means the database sleeps more and the site's "latest" is staler. |
+| `GECKO_MIN_INTERVAL_MS` | `7000` | GeckoTerminal's free tier is 10 calls/min. |
+
+Two scripts, both run locally against the dev branch:
+
+```bash
+npm run market:report                  # state of every called-at market cap
+npm run market:reconstruct -- --dry-run   # rebuild historical entry prices
+npm run market:reconstruct
+```
+
+`market:reconstruct` is resumable — it only selects calls still missing a price — and
+slow by design, because GeckoTerminal allows 10 calls a minute. It never overwrites a
+measured number.
+
 ## After deploying
 
 ```bash

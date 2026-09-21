@@ -275,3 +275,78 @@ outage.
 Telegram account's home data centre is DC4 (Amsterdam), so each push crosses the
 Atlantic — tens of milliseconds, against lags measured in seconds. A message costs
 several database round trips and one Telegram delivery, so the database wins.
+
+## Phase 2 — market data
+
+**The called-at market cap is captured on the ingest path, not on a sweep.** The
+listener hands every newly created Call to a capture queue the moment the row exists.
+The first attempt is immediate; retries run off the ingest path, because a token that
+is not indexed yet can take minutes and the channel lock must not be held for minutes.
+
+**`marketCapObservedAt` is stored beside it, always.** Ingest is fast — 0.64s median on
+the live path — but a price lookup is not, and DexScreener may serve a cached figure.
+The record therefore states when the observation behind the number was taken. An entry
+price with no timestamp cannot be checked by anyone, which makes it worthless as
+evidence. `marketCapSource` says exactly how it was obtained, in prose, because a
+boolean cannot express "the open of the 1-minute candle 5 seconds before the call".
+
+**The number can only be written once, and the database enforces it.** Every write is
+`updateMany({ where: { id, calledAtMarketCapUsd: null } })`. A second attempt updates
+zero rows rather than relying on everyone remembering rule 3. Tested.
+
+**A call we did not witness is never "captured".** Anything older than 10 minutes when
+we first see it — backfilled history, or a catch-up after downtime — goes to
+reconstruction instead, flagged. A current price is not a called-at price.
+
+**A null market cap is a recorded outcome, not an absence.** After a bounded retry
+window (~8.5 minutes) the call keeps a null and gains a `marketCapNullReason`. A guess
+would be worse than a null, and an unexplained null invites someone to fill it in later.
+
+**The specific chain is resolved and stored separately from the address format.**
+`Token.chain` (SOLANA | EVM) is what the address string proves. `Token.dexChainId` is
+what a metadata lookup found: our five EVM tokens live on three different chains —
+`bsc`, `hyperevm` and `robinhood` — and no amount of staring at the address reveals
+which. Keeping both means never confusing a fact with a third party's claim.
+
+**Polling happens in memory; the database is written on a slow cadence.** Cadence by
+age: 30s for the first hour, then 2min, 10min, hourly, 6-hourly. A snapshot per token
+per poll would be ten times the write rate of the heartbeat we deliberately removed —
+any write keeps Neon awake at least five minutes. So observations are held in memory
+and flushed every 15 minutes, and only for tokens where something happened: a new peak
+above 1%, or a death. One flush is one round trip for every pending token.
+
+**DexScreener's batch endpoint is what makes that affordable.** Measured: 30 addresses
+in one request, one pair returned per token. Every token we track costs two or three
+HTTP requests per poll, not fifty.
+
+**The DexScreener rate limit used here is chosen, not quoted.** Their docs publish
+"60 requests per minute" for the profile and trending endpoints, but the limits for the
+price endpoints are rendered client-side and could not be read from the page; the
+responses carry no rate-limit headers either (checked). So the client serialises to one
+request every 2 seconds — below the lowest number they publish for anything.
+GeckoTerminal does publish its free limit, 10 calls per minute, and its client is
+spaced to 7 seconds accordingly.
+
+**A timeout is not a verdict.** The first reconstruction run recorded four of five
+calls as permanently null — "chain unknown", "no pool" — and every one of those was a
+10-second network timeout on this laptop, not a fact about the token. With retries all
+five reconstructed. Both HTTP clients now retry transient failures, and the
+reconstruction script distinguishes "the lookup failed, retry" from "there is no such
+pool", because the second is written into the record and the first must not be.
+
+**Reconstruction uses the candle OPEN, and says which resolution it used.**
+GeckoTerminal keeps minute candles only for recent history, so older calls fall back to
+hour and then day candles. Open rather than close: it is the price at the start of the
+minute the call landed in, so it cannot include a pump the call itself caused. Market
+cap is not in the OHLCV feed, so supply is implied from a current observation as
+fdv / price and multiplied by the historical price — sound for a memecoin whose supply
+is fixed after launch, but an assumption, and one written into `marketCapSource` rather
+than left for someone to rediscover.
+
+**Dead needs two strikes.** Liquidity under $500, market cap under $1,000, or no volume
+in 24 hours once the token is over an hour old. A rug and an API blip look identical
+once; they stop looking identical when the same verdict repeats on the next poll.
+Missing liquidity is NOT pulled liquidity — DexScreener returns null liquidity for some
+healthy pairs, measured on one of our own tokens, and treating that as a rug would close
+live calls. A closed call stops being polled but stays in the database and on the board,
+per rule 5.

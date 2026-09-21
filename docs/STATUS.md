@@ -7,12 +7,31 @@ reading diffs.
 |---|---|---|
 | 0 | Read both channels, write classifier from real messages | **DONE** |
 | 1 | Ingestion — listener, channels table, call/event model, backfill | **BUILT — live capture not yet observed** |
-| 2 | Market data — DexScreener polling, mcap capture, dead detection | Not started |
+| 2 | Market data — DexScreener polling, mcap capture, dead detection | **BUILT — see Phase 2 below** |
 | 3 | Narrative — socials -> 2-3 sentences, generated once | Not started |
 | 4 | Auth + feed — Privy email login, live feed | Not started |
 | 5 | Journal — log a play, entry-vs-call multiple | Not started |
 | 6 | Public track record + landing page | Not started |
 | 7 | Deploy and harden | **Worker deploy brought forward** — see below. Web deploy not started. |
+
+## Phase 2 — market data
+
+Built on top of a live ingest path measured at 0.64s median (10 live / 1 poll).
+
+- [x] `calledAtMarketCapUsd` captured on the ingest path the moment a Call is created,
+      with `marketCapObservedAt` beside it and `marketCapSource` saying how.
+- [x] Write-once enforced by the database (`where: { calledAtMarketCapUsd: null }`),
+      tested. Later polls move latest/peak and nothing else.
+- [x] Bounded retries for tokens not yet indexed, then an honest null with a reason.
+- [x] `Token.dexChainId` resolved from metadata — our EVM calls span bsc, hyperevm and
+      robinhood, indistinguishable by address.
+- [x] Age-based polling in memory (30s -> 6h), batched flush every 15min, dead
+      detection needing two strikes.
+- [x] Reconstruction of historical calls from GeckoTerminal OHLCV, flagged
+      `marketCapIsBackfilled`, with the candle resolution recorded.
+- [ ] Deployed to Railway (needs a redeploy carrying Phase 2)
+
+`npm run market:report` prints the state of every number above.
 
 ## Phase 7, worker only — brought forward
 
