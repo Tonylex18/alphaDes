@@ -9,10 +9,25 @@ reading diffs.
 | 1 | Ingestion — listener, channels table, call/event model, backfill | **BUILT — live capture not yet observed** |
 | 2 | Market data — DexScreener polling, mcap capture, dead detection | **BUILT — see Phase 2 below** |
 | 3 | Narrative — socials -> 2-3 sentences, generated once | **BUILT — generation run needs an API key** |
-| 4 | Auth + feed — Privy email login, live feed | Not started |
+| 4 | Auth + feed — Privy email login, live feed | **BUILT — not deployed, not signed into** |
 | 5 | Journal — log a play, entry-vs-call multiple | Not started |
 | 6 | Public track record + landing page | Not started |
 | 7 | Deploy and harden | **Worker deploy brought forward** — see below. Web deploy not started. |
+
+## Phase 4 — auth and the feed
+
+- [x] Privy email login, one field, embedded wallets provisioned (Solana + EVM) unused in v1.
+- [x] Three-column feed, newest first, polling every 10s, new arrivals outlined.
+- [x] Card keeps measured / reconstructed / missing apart; no multiple without an entry price.
+- [x] Three narrative states distinct; NONE reads as a finding. Dead calls stay, with reason.
+- [x] Feed gated server-side: token verified with `@privy-io/server-auth`, 401 otherwise.
+- [x] Worker pushes on write; feed caches by tag and never polls the database.
+- [ ] **Deployed to Vercel** — needs the account
+- [ ] **Signed in and watched a call land** — needs an email and the code sent to it
+
+Measured: ~1,080 feed requests in 12 minutes cost 12 database queries, all from one TTL
+expiry. With the web app stopped, Neon cycled exactly the same way — the feed adds no
+Neon compute.
 
 ## Phase 3 — narrative
 

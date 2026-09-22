@@ -447,3 +447,45 @@ them passed against the broken code on the first attempt, because no credential 
 in the test environment and the function short-circuited before ever reaching the branch
 under test — they now set a dummy key so the request is actually attempted. A test that
 has never been seen to fail is not evidence.
+
+## Phase 4 — auth and the feed
+
+**The writer pushes; the feed never polls the database.** A feed that queries Neon every
+few seconds undoes the batching the worker was built around, and unlike the worker it
+scales with VISITORS rather than tokens. So the feed query is cached by tag with a long
+TTL (10 minutes), the worker POSTs to `/api/revalidate` the moment it creates a call or
+flushes prices, and browsers poll a route that serves the cached payload. Database reads
+scale with writes, not with viewers or with time.
+
+Measured: **~1,080 feed requests over 12 minutes from three simulated viewers polling
+every 2 seconds cost 12 database queries** — and all 12 landed in a single minute, when
+the TTL expired. Thirty concurrent requests cost zero. `/api/feed` returns its own
+`dbQueries` count so this stays checkable rather than believed.
+
+Neon stayed awake during that window, but not because of the feed: repeating the
+measurement with the web app **stopped** showed the same active/idle cycling, and the
+worker wrote nothing at all during the first window. The feed's contribution to Neon
+compute is the 12 queries, nothing more. The revalidate endpoint is shared-secret
+authenticated for the same reason — without it, anyone could force the database awake by
+curling it in a loop.
+
+**The gate has to be on the server, and the first version's was not.** Rendering the feed
+only when Privy reports `authenticated` looks like a gate but is not one: Next serialises
+server props into the page payload, so the signed-out HTML contained every call —
+`curl localhost:3000 | grep RACAT` returned the data, and `/api/feed` had no auth at all.
+Now the page renders only the gate, the browser fetches `/api/feed` with a Privy access
+token, and the route verifies it server-side with `@privy-io/server-auth`. A missing or
+forged token gets a 401, and a missing Privy configuration fails closed rather than open.
+The signed-out page went from 66KB of feed data to 5KB with none.
+
+**The card keeps the three contracts apart, and there are render tests to prove it.**
+A measured entry price says "measured at the call" with how many seconds after the call
+it was read; a reconstructed one says "reconstructed from history" in a different colour;
+a call with no entry price shows "unknown" and **no multiple anywhere** — the test asserts
+no `Nx` string and no bare zero can appear on such a card, because a multiple derived from
+a null entry is not an inaccuracy but a fabrication. The caller's stated figure, where
+there is one, is labelled as their claim. The three narrative sources read differently,
+and `NONE` — about half the board — renders as a finding ("this token had no website, X or
+Telegram on its listing when it was called") rather than an empty slot. `PENDING` is
+distinct again: never looked up is not the same as looked up and found nothing. Dead calls
+stay, with the reason.

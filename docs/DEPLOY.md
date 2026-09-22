@@ -42,6 +42,8 @@ Set these in the Railway dashboard. **No secret belongs in the repo.**
 | `POLL_INTERVAL_MS` | `60000`. Leave it. A faster poll would do the live handler's job and hide it being dead — which is what we are measuring. |
 | `STARTUP_DELAY_MS` | `20000` on Railway. See "Redeploys". |
 | `CHANNEL_<n>_ID` / `_KIND` / `_NAME` / `_USERNAME` / `_ROLE` | Only read by `npm run seed:channels`. The worker reads the `Channel` table, never these. Setting them on Railway is optional. |
+| `FEED_REVALIDATE_URL` | The web app's `/api/revalidate`. The worker POSTs here after writing so the feed can cache and never poll the database. Unset locally is fine. |
+| `REVALIDATE_SECRET` | Shared with the web app. Without it the endpoint refuses every request, so nobody can force Neon awake. |
 | `ANTHROPIC_API_KEY` | Narrative generation (Phase 3). Without it — or with a wrong one — the worker runs normally and writes **no narrative rows at all** for the tokens it could not reach. It never invents one, and never records "no narrative" because of its own failure, because that row could not be corrected later. |
 | `PORT` | Railway injects it. Do not set it. |
 
@@ -142,3 +144,23 @@ npm run ingest:report -- 2026-09-20T00:00:00Z   # messages by path, lag per path
 - The worker prints a `[stats]` line every 15 minutes: messages by path, median and
   worst lag, database queries, connection warnings. That is where an OBSERVE channel's
   numbers live, since it writes nothing.
+
+## The web app (Phase 4) — Vercel, not Railway
+
+Next.js, deployed from the repo root with `apps/web` as the project root. It reads the
+same Neon `dev` branch the worker writes to.
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | Neon pooled. Read-only in practice; the web app never writes. |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Public by design — it ships to the browser. |
+| `PRIVY_APP_SECRET` | Server-side token verification. Never exposed. |
+| `REVALIDATE_SECRET` | Must match the worker's. |
+
+Then point the worker's `FEED_REVALIDATE_URL` at `https://<the deployment>/api/revalidate`.
+Until that is set the feed still updates, but only when its 10-minute cache expires
+rather than seconds after a call lands.
+
+**The feed is gated server-side.** `/api/feed` verifies a Privy access token and returns
+401 without one; the page itself renders no call data. The public track record (Phase 6)
+will be a separate, unauthenticated route.
