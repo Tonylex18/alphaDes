@@ -21,6 +21,7 @@ import type { PrismaClient } from "@alphades/db";
 
 import { processBatch, type IncomingMessage, type ProcessResult } from "./ingest/process.js";
 import { withTransientRetry } from "./lib/db-wake.js";
+import { revalidateFeed } from "./lib/revalidate.js";
 import type { CaptureTarget } from "./market/capture.js";
 import {
   worker,
@@ -167,6 +168,10 @@ export async function ingest(
         });
       }
     }
+
+    // The feed caches until we say otherwise, so say so now: this is what
+    // makes a new call appear in seconds without the browser ever polling Neon.
+    if (results.some((r) => r.outcome.action === "call_created")) revalidateFeed("new call");
 
     const secs = ((Date.now() - started) / 1000).toFixed(1);
     const lags = fresh.map(lag);

@@ -19,6 +19,7 @@
 import type { PrismaClient } from "@alphades/db";
 import { fetchTokens, resolveToken, type Observation } from "./dexscreener.js";
 import { withTransientRetry } from "../lib/db-wake.js";
+import { revalidateFeed } from "../lib/revalidate.js";
 
 /// Age -> how often to look. Young tokens move; week-old ones do not.
 const CADENCE: { maxAgeMs: number; everyMs: number }[] = [
@@ -325,6 +326,7 @@ export class MarketPoller {
     this.stats.flushes++;
     this.stats.rowsWritten += writes.length;
     console.log(`[market] flushed ${ids.length} call(s), ${snapshots.length} snapshot(s)`);
+    revalidateFeed("price flush");
     return ids.length;
   }
 
