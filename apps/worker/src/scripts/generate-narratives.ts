@@ -16,14 +16,22 @@ import "../lib/env.js";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@alphades/db";
 import { waitForDatabase, withTransientRetry } from "../lib/db-wake.js";
-import { costOf, generateNarrative, MODEL, sourcesFor } from "../narrative/generate.js";
+import { costOf, generateNarrative, hasCredential, MODEL, sourcesFor } from "../narrative/generate.js";
 
 const dryRun = process.argv.includes("--dry-run");
 const limitAt = process.argv.indexOf("--limit");
 const limit = limitAt >= 0 ? Number(process.argv[limitAt + 1]) : undefined;
 
-if (!dryRun && !process.env.ANTHROPIC_API_KEY) {
-  console.error("ANTHROPIC_API_KEY is not set. Use --dry-run to see what would be sent.");
+// Refuse to start rather than run and record nothing-to-say for every token.
+// A NONE row cannot be corrected later, so a missing credential must not be
+// able to produce one.
+if (!dryRun && !hasCredential()) {
+  console.error(
+    "ANTHROPIC_API_KEY is not set, so nothing can be generated.\n" +
+      "Refusing to run: a failed run would otherwise record a permanent \"no narrative\" for\n" +
+      "every token, and those rows cannot be replaced once the key arrives.\n" +
+      "Use --dry-run to see what would be read.",
+  );
   process.exit(1);
 }
 
@@ -46,7 +54,7 @@ const tokens = await prisma.token.findMany({
 console.log(`${tokens.length} token(s) with no narrative${dryRun ? " (dry run — nothing will be sent or written)" : ""}\n`);
 
 const rows: any[] = [];
-let generated = 0, none = 0, inTok = 0, outTok = 0, cost = 0;
+let generated = 0, none = 0, unavailable = 0, inTok = 0, outTok = 0, cost = 0;
 const client = dryRun ? null : new Anthropic();
 
 for (const [i, t] of tokens.entries()) {
@@ -65,7 +73,15 @@ for (const [i, t] of tokens.entries()) {
   const r = await generateNarrative(client!, t);
   inTok += r.inputTokens; outTok += r.outputTokens; cost += r.costUsd;
 
-  if (r.ok) {
+  if (r.kind === "unavailable") {
+    // Infrastructure, not a verdict. Write nothing and leave the token for a
+    // later run — a NONE row here would be permanent and wrong.
+    unavailable++;
+    console.log(`  [${i + 1}/${tokens.length}] ${tag} SKIPPED — ${r.reason.slice(0, 90)}`);
+    continue;
+  }
+
+  if (r.kind === "generated") {
     generated++;
     console.log(`  [${i + 1}/${tokens.length}] ${tag} ${r.summary.replace(/\s+/g, " ").slice(0, 96)}…`);
     rows.push(
@@ -111,7 +127,10 @@ if (rows.length) {
 }
 
 if (!dryRun) {
-  console.log(`\ngenerated ${generated}, recorded NONE ${none}`);
+  console.log(`\ngenerated ${generated}, recorded NONE ${none}, skipped (nothing written) ${unavailable}`);
+  if (unavailable) {
+    console.log(`${unavailable} token(s) were not attempted because the API was unavailable — re-run to pick them up.`);
+  }
   console.log(
     `tokens: ${inTok.toLocaleString()} in, ${outTok.toLocaleString()} out — ` +
       `$${cost.toFixed(4)} at ${MODEL} list price ($5/$25 per Mtok)`,

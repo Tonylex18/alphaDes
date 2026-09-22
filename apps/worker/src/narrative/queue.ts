@@ -17,7 +17,7 @@ import { generateNarrative, MODEL } from "./generate.js";
 
 export class NarrativeQueue {
   private running = new Set<string>();
-  readonly stats = { generated: 0, none: 0, costUsd: 0, inputTokens: 0, outputTokens: 0 };
+  readonly stats = { generated: 0, none: 0, unavailable: 0, costUsd: 0, inputTokens: 0, outputTokens: 0 };
 
   constructor(
     private prisma: PrismaClient,
@@ -52,20 +52,32 @@ export class NarrativeQueue {
     this.stats.outputTokens += r.outputTokens;
     this.stats.costUsd += r.costUsd;
 
-    const data = r.ok
-      ? {
-          tokenId, source: "GENERATED" as const, summary: r.summary,
-          sourceNote: "Summarised from the project's own socials",
-          sourceUrls: r.sourceUrls, model: MODEL,
-          inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: r.costUsd,
-        }
-      : {
-          tokenId, source: "NONE" as const, summary: null, nullReason: r.reason.slice(0, 500),
-          sourceNote: "No narrative: the project published nothing we could read",
-          sourceUrls: r.sourceUrls, model: r.inputTokens > 0 ? MODEL : null,
-          inputTokens: r.inputTokens || null, outputTokens: r.outputTokens || null,
-          costUsd: r.costUsd || null,
-        };
+    // Our own failure. Write NOTHING: a NONE row is permanent, and "the API
+    // rejected us" must not become "this project published nothing". The next
+    // run picks the token up again because it still has no narrative.
+    if (r.kind === "unavailable") {
+      this.stats.unavailable++;
+      console.warn(
+        `[narrative] ${token.symbol ?? token.address.slice(0, 8)}: not attempted — ${r.reason.slice(0, 120)}`,
+      );
+      return;
+    }
+
+    const data =
+      r.kind === "generated"
+        ? {
+            tokenId, source: "GENERATED" as const, summary: r.summary,
+            sourceNote: "Summarised from the project's own socials",
+            sourceUrls: r.sourceUrls, model: MODEL,
+            inputTokens: r.inputTokens, outputTokens: r.outputTokens, costUsd: r.costUsd,
+          }
+        : {
+            tokenId, source: "NONE" as const, summary: null, nullReason: r.reason.slice(0, 500),
+            sourceNote: "No narrative: the project published nothing we could read",
+            sourceUrls: r.sourceUrls, model: r.inputTokens > 0 ? MODEL : null,
+            inputTokens: r.inputTokens || null, outputTokens: r.outputTokens || null,
+            costUsd: r.costUsd || null,
+          };
 
     // One row, written once. The unique constraint on tokenId is the guarantee
     // that a race cannot produce a second, different narrative.
@@ -75,7 +87,7 @@ export class NarrativeQueue {
       if (!/Unique constraint/i.test(String((e as Error)?.message))) throw e;
     });
 
-    if (r.ok) {
+    if (r.kind === "generated") {
       this.stats.generated++;
       console.log(`[narrative] ${token.symbol ?? token.address.slice(0, 8)}: ${r.summary.replace(/\s+/g, " ").slice(0, 90)}…`);
     } else {
@@ -87,6 +99,7 @@ export class NarrativeQueue {
   statsLine(): string {
     return (
       `[narrative] generated=${this.stats.generated} none=${this.stats.none} ` +
+      `unavailable=${this.stats.unavailable} ` +
       `tokens=${this.stats.inputTokens}in/${this.stats.outputTokens}out cost=$${this.stats.costUsd.toFixed(4)}`
     );
   }

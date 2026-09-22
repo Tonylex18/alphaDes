@@ -423,3 +423,27 @@ tokens have at least one of their own links.
 stores the socials, so the narrative queue is triggered by a successful capture. It is
 fire-and-forget: the call row and its market cap are already written, and a story
 arriving a few seconds later is not worth holding the ingest path for.
+
+**An infrastructure failure is never recorded as a fact about a token.** `Narrative`
+has three outcomes, and the third exists because a NONE row is permanent: `tokenId` is
+unique and the code only ever creates, so a NONE written today cannot be replaced
+tomorrow. "This project published nothing we could read" must therefore only ever be
+written when that is true of the project — never because our own side failed.
+
+- **none** — a fact about the token: no website, X or Telegram on its listing, or its
+  own pages were fetched and said nothing usable. Written, permanent.
+- **unavailable** — a fact about us: no credential, a rejected key, a rate limit, a
+  5xx, a dropped connection, a model refusal, an empty response. **Nothing is written**,
+  and the token stays a candidate for the next run.
+
+With no credential at all both entry points were already safe — the bulk script exits
+before touching the database and the live queue is never constructed — but a key that
+was *present and wrong* was not: a 401 came back as an ordinary failure and was recorded
+as a permanent NONE. A typo in a Railway variable would have quietly written off every
+token it touched.
+
+The tests for this were verified by reverting the fix and watching them fail. Two of
+them passed against the broken code on the first attempt, because no credential is set
+in the test environment and the function short-circuited before ever reaching the branch
+under test — they now set a dummy key so the request is actually attempted. A test that
+has never been seen to fail is not evidence.

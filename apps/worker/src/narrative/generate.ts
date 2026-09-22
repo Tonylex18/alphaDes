@@ -49,16 +49,28 @@ export type TokenForNarrative = {
   telegramUrl: string | null;
 };
 
+type Spend = { sourceUrls: string[]; inputTokens: number; outputTokens: number; costUsd: number };
+
+/**
+ * Three outcomes, and the third one is the point.
+ *
+ *   generated    we have a summary.
+ *   none         a FACT ABOUT THE TOKEN: it published nothing we could read.
+ *                Written as a NONE row, which is permanent.
+ *   unavailable  a fact about US: no credential, the API refused us, the
+ *                request failed. NOTHING IS WRITTEN.
+ *
+ * The distinction exists because a NONE row is write-once and uncorrectable —
+ * `Narrative.tokenId` is unique and the code only ever creates. Recording "this
+ * project published nothing" because our own API key was wrong would be
+ * unfixable when the key is fixed, which is the same class of mistake as
+ * writing a wrong calledAtMarketCapUsd. An infrastructure failure must leave
+ * the token exactly as it found it, so a later run can try again.
+ */
 export type GenerationResult =
-  | {
-      ok: true;
-      summary: string;
-      sourceUrls: string[];
-      inputTokens: number;
-      outputTokens: number;
-      costUsd: number;
-    }
-  | { ok: false; reason: string; sourceUrls: string[]; inputTokens: number; outputTokens: number; costUsd: number };
+  | ({ kind: "generated"; summary: string } & Spend)
+  | ({ kind: "none"; reason: string } & Spend)
+  | ({ kind: "unavailable"; reason: string } & Spend);
 
 /// The project's own links, and the hostnames web_fetch is allowed to touch.
 export function sourcesFor(t: TokenForNarrative): { urls: string[]; domains: string[] } {
@@ -76,6 +88,12 @@ export function sourcesFor(t: TokenForNarrative): { urls: string[]; domains: str
   return { urls, domains };
 }
 
+/// The SDK resolves credentials from more than one place, but every one of them
+/// surfaces as one of these. If none is set, no call can succeed.
+export function hasCredential(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.ANTHROPIC_API_KEY?.trim() || env.ANTHROPIC_AUTH_TOKEN?.trim());
+}
+
 export function costOf(inputTokens: number, outputTokens: number): number {
   return (inputTokens / 1e6) * USD_PER_MTOK_INPUT + (outputTokens / 1e6) * USD_PER_MTOK_OUTPUT;
 }
@@ -86,8 +104,15 @@ export async function generateNarrative(
 ): Promise<GenerationResult> {
   const { urls, domains } = sourcesFor(token);
   const empty = { sourceUrls: urls, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+
+  // Defensive: the callers check too, but a missing credential must never be
+  // able to reach the code that decides a token has nothing to say.
+  if (!hasCredential()) {
+    return { kind: "unavailable", reason: "no ANTHROPIC_API_KEY — nothing attempted", ...empty };
+  }
   if (domains.length === 0) {
-    return { ok: false, reason: "no website, X or Telegram link on the token's DEX listing", ...empty };
+    // A fact about the token: its DEX listing carries no links at all.
+    return { kind: "none", reason: "no website, X or Telegram link on the token's DEX listing", ...empty };
   }
 
   const label = token.name ?? token.symbol ?? token.address;
@@ -116,8 +141,9 @@ export async function generateNarrative(
       messages: [{ role: "user", content: prompt }],
     });
   } catch (e) {
+    // Our API failing says nothing about the project. Leave the token alone.
     const msg = e instanceof Anthropic.APIError ? `${e.status}: ${e.message}` : String((e as Error)?.message ?? e);
-    return { ok: false, reason: `api error — ${msg.slice(0, 200)}`, ...empty };
+    return { kind: "unavailable", reason: `api error — ${msg.slice(0, 200)}`, ...empty };
   }
 
   const inputTokens = response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0);
@@ -126,7 +152,8 @@ export async function generateNarrative(
   const spend = { inputTokens, outputTokens, costUsd, sourceUrls: urls };
 
   if (response.stop_reason === "refusal") {
-    return { ok: false, reason: `model declined (${response.stop_details?.category ?? "unknown"})`, ...spend };
+    // The model declining our request is not the project failing to publish.
+    return { kind: "unavailable", reason: `model declined (${response.stop_details?.category ?? "unknown"})`, ...spend };
   }
 
   const text = response.content
@@ -135,15 +162,16 @@ export async function generateNarrative(
     .join("\n")
     .trim();
 
-  if (!text) return { ok: false, reason: "model returned no text", ...spend };
+  // An empty or truncated response is a failed call, not a verdict.
+  if (!text) return { kind: "unavailable", reason: `model returned no text (stop_reason ${response.stop_reason})`, ...spend };
   if (text.startsWith(INSUFFICIENT)) {
-    return { ok: false, reason: `nothing usable on the project's own pages — ${text.slice(INSUFFICIENT.length).trim().slice(0, 200)}`, ...spend };
+    return { kind: "none", reason: `nothing usable on the project's own pages — ${text.slice(INSUFFICIENT.length).trim().slice(0, 200)}`, ...spend };
   }
   // A refusal to invent can arrive without the sentinel; do not store a
   // sentence that is about the absence of information.
   if (/^(i (cannot|can't|was unable)|unable to|the pages? (do|does) not)/i.test(text)) {
-    return { ok: false, reason: `nothing usable on the project's own pages — ${text.slice(0, 200)}`, ...spend };
+    return { kind: "none", reason: `nothing usable on the project's own pages — ${text.slice(0, 200)}`, ...spend };
   }
 
-  return { ok: true, summary: text, ...spend };
+  return { kind: "generated", summary: text, ...spend };
 }

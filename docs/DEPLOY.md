@@ -42,7 +42,7 @@ Set these in the Railway dashboard. **No secret belongs in the repo.**
 | `POLL_INTERVAL_MS` | `60000`. Leave it. A faster poll would do the live handler's job and hide it being dead — which is what we are measuring. |
 | `STARTUP_DELAY_MS` | `20000` on Railway. See "Redeploys". |
 | `CHANNEL_<n>_ID` / `_KIND` / `_NAME` / `_USERNAME` / `_ROLE` | Only read by `npm run seed:channels`. The worker reads the `Channel` table, never these. Setting them on Railway is optional. |
-| `ANTHROPIC_API_KEY` | Narrative generation (Phase 3). Without it the worker runs normally and simply writes no generated narratives — it never invents one. |
+| `ANTHROPIC_API_KEY` | Narrative generation (Phase 3). Without it — or with a wrong one — the worker runs normally and writes **no narrative rows at all** for the tokens it could not reach. It never invents one, and never records "no narrative" because of its own failure, because that row could not be corrected later. |
 | `PORT` | Railway injects it. Do not set it. |
 
 The worker scrubs `TG_SESSION`, `TG_API_HASH` and both database URLs — and a database
