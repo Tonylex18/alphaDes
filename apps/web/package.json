@@ -2,12 +2,25 @@
   "name": "@alphades/web",
   "version": "0.0.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start" },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "TSX_TSCONFIG_PATH=./tsconfig.test.json node --import tsx --test src/components/*.test.tsx"
+  },
   "dependencies": {
     "@alphades/db": "*",
+    "@privy-io/react-auth": "^3.45.0",
+    "@privy-io/server-auth": "^1.32.5",
     "next": "^14.2.15",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
-  "devDependencies": { "typescript": "^5.6.3", "@types/react": "^18.3.11", "@types/node": "^22.7.5" }
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.6.3"
+  }
 }
