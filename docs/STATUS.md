@@ -11,7 +11,7 @@ reading diffs.
 | 3 | Narrative — socials -> 2-3 sentences, generated once | **BUILT — generation run needs an API key** |
 | 4 | Auth + feed — Privy email login, live feed | **BUILT — not deployed, not signed into** |
 | 5 | Journal — log a play, entry-vs-call multiple | Not started |
-| 6 | Public track record + landing page | Not started |
+| 6 | Public track record + landing page | **Landing page built** (public, static). Track record board not started. |
 | 7 | Deploy and harden | **Worker deploy brought forward** — see below. Web deploy not started. |
 
 ## Phase 4 — auth and the feed

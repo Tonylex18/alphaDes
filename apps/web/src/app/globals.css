@@ -185,3 +185,107 @@ a { color: inherit; }
 .gate p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 22px; }
 .gate .note { font-size: 11.5px; color: var(--faint); margin-top: 16px; }
 .skeleton { color: var(--faint); font-family: var(--mono); font-size: 12px; }
+
+/* ======================================================================
+   Public landing page. Phone first: this audience is on one.
+   ====================================================================== */
+.land { padding-bottom: 0; }
+.land-wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+.sec { padding: 54px 20px; }
+.land h2 {
+  font-size: 27px; line-height: 1.18; letter-spacing: -0.025em;
+  margin: 0 0 14px; max-width: 18ch;
+}
+.land .body { font-size: 15.5px; line-height: 1.62; color: #a9b0ba; margin: 0 0 14px; max-width: 62ch; }
+.land .body.muted { color: var(--muted); font-size: 14.5px; }
+.land .body.small { font-size: 13px; }
+
+/* 1 — hero */
+.hero { padding: 64px 0 30px; border-bottom: 1px solid var(--line); }
+.eyebrow {
+  font-size: 11px; color: var(--faint); letter-spacing: 0.06em;
+  text-transform: uppercase; margin-bottom: 16px;
+}
+.hero h1 {
+  font-size: 40px; line-height: 1.08; letter-spacing: -0.035em;
+  margin: 0 0 18px; max-width: 16ch;
+}
+.hero h1 span { color: var(--lime); }
+.lede { font-size: 16.5px; line-height: 1.6; color: #a9b0ba; max-width: 56ch; margin: 0 0 26px; }
+.btn.big { display: inline-block; font-size: 15px; padding: 13px 24px; text-decoration: none; border-radius: 9px; }
+.under { font-size: 12.5px; color: var(--faint); margin: 14px 0 0; }
+
+/* 2 — the problem */
+.addr {
+  display: block; overflow-wrap: anywhere; font-size: 13px; color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line); border-left: 2px solid var(--lime);
+  border-radius: 9px; padding: 13px 14px; margin: 0 0 18px;
+}
+
+/* 3 — the card */
+.anat { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 22px; margin-top: 22px; }
+@media (max-width: 720px) { .anat { grid-template-columns: 1fr; } }
+.anat-card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 15px; height: fit-content; }
+.anat-head { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; flex-wrap: wrap; }
+.anat-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.anat-nums > div { background: var(--panel-2); padding: 9px 10px; }
+.anat-nums .k { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.anat-nums .v { font-size: 14px; font-weight: 500; }
+.anat-story { margin-top: 12px; font-size: 12.5px; line-height: 1.5; color: #a9b0ba; border-left: 2px solid var(--lime); padding-left: 10px; }
+.anat-story .lbl {
+  display: block; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--lime); margin-bottom: 5px;
+}
+.anat-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 15px; align-content: start; }
+.anat-notes li { font-size: 14px; line-height: 1.55; color: var(--muted); }
+.anat-notes b { color: var(--text); font-weight: 500; }
+
+/* 6 — the honest record: the section that carries the most weight */
+.record { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #0e1013; }
+.record h2 { font-size: 30px; max-width: 16ch; }
+.figs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; margin: 24px 0 20px;
+}
+.figs > div { background: var(--panel); padding: 15px; }
+.figs dt { font-size: 11.5px; color: var(--muted); margin-bottom: 7px; }
+.figs dd { margin: 0 0 5px; font-size: 27px; font-weight: 500; line-height: 1; }
+.figs dd.red { color: var(--red); }
+.figs dd.lime { color: var(--lime); }
+.figs dd.amber { color: var(--amber); }
+.figs dd.faint { color: var(--faint); }
+.figs small { font-size: 11px; color: var(--faint); line-height: 1.4; display: block; }
+
+.deadlist { list-style: none; margin: 0 0 22px; padding: 0; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.deadlist li { background: var(--panel); padding: 11px 13px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.deadlist .ticker { font-weight: 700; font-size: 13.5px; }
+.deadlist .when { font-size: 11px; color: var(--faint); }
+.deadlist .reason { color: var(--red); font-size: 12.5px; }
+
+.caveat {
+  border-left: 2px solid var(--amber); padding: 13px 15px; background: var(--panel);
+  border-radius: 0 9px 9px 0; font-size: 14px; color: #a9b0ba; max-width: none;
+}
+.caveat b { color: var(--text); font-weight: 500; }
+.asof { font-size: 11px; color: var(--faint); margin: 14px 0 0; }
+
+/* 7 — CTA + risk. Not buried, not 10px. */
+.cta { text-align: center; padding-top: 58px; }
+.cta h2 { max-width: none; margin-left: auto; margin-right: auto; }
+.risk {
+  margin: 26px auto 16px; max-width: 46ch;
+  border: 1px solid #3a2420; background: #1a1210; color: #f0a89c;
+  border-radius: 10px; padding: 14px 16px; font-size: 14px; line-height: 1.5;
+}
+.cta .body { margin-left: auto; margin-right: auto; }
+
+@media (max-width: 640px) {
+  .hero { padding: 44px 0 26px; }
+  .hero h1 { font-size: 31px; }
+  .lede { font-size: 15.5px; }
+  .land h2, .record h2 { font-size: 23px; }
+  .sec { padding: 42px 20px; }
+  .figs dd { font-size: 23px; }
+}
+.deadnote { margin-top: -10px; margin-bottom: 20px; }

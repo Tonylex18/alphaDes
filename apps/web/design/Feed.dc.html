@@ -1,0 +1,193 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #0c0d10; color: #e6e8ec;
+           font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #b8f24d; text-decoration: none; } a:hover { color: #cdf77f; }
+    .m { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+         font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+           text-transform: uppercase; color: #5b616b; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; box-sizing: border-box; background: #0c0d10; min-height: 900px;">
+
+  <!-- top bar -->
+  <div style="border-bottom: 1px solid #1c2027; background: #0f1116; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; height: 58px;">
+    <div style="display: flex; align-items: center; gap: 30px;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 18 9 9l4 5 3-4 5 8" stroke="#b8f24d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span style="font-size: 17px; font-weight: 700; letter-spacing: -0.02em;">[PRODUCT NAME]</span>
+      </div>
+      <div style="display: flex; gap: 22px;">
+        <span style="font-size: 14px; font-weight: 500; color: #e6e8ec;">Feed</span>
+        <span style="font-size: 14px; color: #7d838e;">Journal</span>
+        <span style="font-size: 14px; color: #7d838e;">Track record</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 999px; background: #151a12; border: 1px solid #2c3a1c;">
+        <span style="width: 6px; height: 6px; border-radius: 999px; background: #b8f24d;"></span>
+        <span class="m" style="font-size: 11px; color: #b8f24d;">LIVE</span>
+      </div>
+      <div style="width: 30px; height: 30px; border-radius: 999px; background: #1e232c; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #a9b0ba;">AA</div>
+    </div>
+  </div>
+
+  <div style="padding: 24px 28px 36px 28px;">
+
+    <!-- channel filter -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
+      <div style="display: flex; gap: 8px;">
+        <div style="padding: 6px 14px; border-radius: 999px; background: #b8f24d; color: #10130a; font-size: 13px; font-weight: 600;">All channels</div>
+        <div style="padding: 6px 14px; border-radius: 999px; border: 1px solid #2b303a; color: #a9b0ba; font-size: 13px;">Trenches Only</div>
+        <div style="padding: 6px 14px; border-radius: 999px; border: 1px solid #2b303a; color: #a9b0ba; font-size: 13px;">Midnight Desk</div>
+      </div>
+      <span class="m" style="font-size: 12px; color: #5b616b;">41 calls tracked this week</span>
+    </div>
+
+    <!-- three columns -->
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px;">
+
+      <!-- LIVE -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="width: 7px; height: 7px; border-radius: 999px; background: #b8f24d;"></span>
+            <span style="font-size: 14px; font-weight: 600;">Just called</span>
+          </div>
+          <span class="m" style="font-size: 12px; color: #5b616b;">3</span>
+        </div>
+
+        <!-- card: fresh -->
+        <div style="border: 1px solid #2c3a1c; background: #14161b; border-radius: 9px; overflow: hidden;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #3a4a22, #6b8f2e);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700;">HARDHAT</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #7d838e;">Trenches Only · 4m ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #b8f24d;">3.4x</div>
+          </div>
+          <p style="margin: 0; padding: 0 15px 12px 15px; font-size: 12.5px; line-height: 19px; color: #9aa1ab; text-wrap: pretty;">Construction-site joke that ran on CT for three days before anyone deployed it.</p>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #10131a; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$28.4K → $61.2K</span>
+            <span class="m" style="font-size: 11px; color: #b8f24d;">ATH $96.7K</span>
+          </div>
+        </div>
+
+        <!-- card: fresh, flat -->
+        <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; overflow: hidden;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #2a3350, #46557f);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700;">NOCTURN</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #7d838e;">Midnight Desk · 11m ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #a9b0ba;">1.1x</div>
+          </div>
+          <p style="margin: 0; padding: 0 15px 12px 15px; font-size: 12.5px; line-height: 19px; color: #9aa1ab; text-wrap: pretty;">Night-shift meta. Third deploy this week riding the same insomnia bit.</p>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #10131a; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$19.8K → $21.6K</span>
+            <span class="m" style="font-size: 11px; color: #7d838e;">ATH $24.1K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- RUNNING -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px;">
+          <span style="font-size: 14px; font-weight: 600;">Still running</span>
+          <span class="m" style="font-size: 12px; color: #5b616b;">6</span>
+        </div>
+
+        <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; overflow: hidden;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #4a2a3a, #8f2e5c);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700;">YADOM</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #7d838e;">Trenches Only · 8h ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #b8f24d;">33.5x</div>
+          </div>
+          <p style="margin: 0; padding: 0 15px 12px 15px; font-size: 12.5px; line-height: 19px; color: #9aa1ab; text-wrap: pretty;">Thai nasal inhaler that became shorthand for "sniffing out" a play.</p>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #10131a; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$27.9K → $784K</span>
+            <span class="m" style="font-size: 11px; color: #b8f24d;">ATH $933K</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; overflow: hidden;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #23404a, #2e7d8f);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700;">TIDEPOOL</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #7d838e;">Midnight Desk · 1d ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #b8f24d;">6.2x</div>
+          </div>
+          <p style="margin: 0; padding: 0 15px 12px 15px; font-size: 12.5px; line-height: 19px; color: #9aa1ab; text-wrap: pretty;">Slow-accumulation narrative. Holders treat the chart's shape as the meme.</p>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #10131a; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$41.1K → $255K</span>
+            <span class="m" style="font-size: 11px; color: #b8f24d;">ATH $312K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLOSED -->
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px;">
+          <span style="font-size: 14px; font-weight: 600; color: #a9b0ba;">Closed</span>
+          <span class="m" style="font-size: 12px; color: #5b616b;">32</span>
+        </div>
+
+        <div style="border: 1px solid #1e2229; background: #101217; border-radius: 9px; overflow: hidden; opacity: 0.82;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #2c2c2c, #4a4a4a);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700; color: #a9b0ba;">BRIKLAYR</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #6b717b;">Trenches Only · 3d ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #ef5f52;">0.04x</div>
+          </div>
+          <div style="margin: 0 15px 12px 15px; padding: 8px 10px; border-radius: 6px; background: #1a1214; border: 1px solid #38201f;">
+            <span style="font-size: 12px; color: #e0837a;">LP pulled 41 minutes after the call.</span>
+          </div>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #0f1116; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$33.2K → $1.3K</span>
+            <span class="m" style="font-size: 11px; color: #6b717b;">Peaked 2.1x</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #1e2229; background: #101217; border-radius: 9px; overflow: hidden; opacity: 0.82;">
+          <div style="padding: 13px 15px; display: flex; gap: 11px; align-items: flex-start;">
+            <div style="width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #3a3524, #6b6030);"></div>
+            <div style="flex-grow: 1; min-width: 0;">
+              <div class="m" style="font-size: 15px; font-weight: 700; color: #a9b0ba;">SANDCAT</div>
+              <div style="margin-top: 3px; font-size: 12px; color: #6b717b;">Midnight Desk · 5d ago</div>
+            </div>
+            <div class="m" style="font-size: 17px; font-weight: 700; color: #f0a83c;">0.6x</div>
+          </div>
+          <p style="margin: 0; padding: 0 15px 12px 15px; font-size: 12.5px; line-height: 19px; color: #7d838e; text-wrap: pretty;">Bled out slowly. No rug — the meta just moved on by the afternoon.</p>
+          <div style="padding: 10px 15px; border-top: 1px solid #1c2027; background: #0f1116; display: flex; justify-content: space-between;">
+            <span class="m" style="font-size: 11px; color: #5b616b;">$52.6K → $31.4K</span>
+            <span class="m" style="font-size: 11px; color: #6b717b;">Peaked 4.8x</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

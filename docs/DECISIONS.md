@@ -489,3 +489,45 @@ and `NONE` — about half the board — renders as a finding ("this token had no
 Telegram on its listing when it was called") rather than an empty slot. `PENDING` is
 distinct again: never looked up is not the same as looked up and found nothing. Dead calls
 stay, with the reason.
+
+## Phase 6 (landing page) — brought forward
+
+**The canvas's headline figures are sample data, and they are not ours.** The brief cited
+"19% go to zero, 37% barely move"; those come from the TrackRecord artboard, whose own
+annotation says every token, channel, narrative and figure on the canvas is invented
+placeholder data. Our database says **33% dead (20 of 60)**, and it cannot support
+"barely moved" at all.
+
+**We cannot publish a peak, a win rate or a time to peak yet, and the page says so.**
+Price polling began on 21 September; most calls date from 9 August. Our recorded peak is
+therefore the highest price *since we started watching*, not the highest price after the
+call. Computed literally it gives a median peak of 0.33x and 100% of calls under 1.5x —
+an artefact of when polling started, not a finding about the calls. Section 4 explains
+time-to-peak as a metric and prints no number; section 6 states plainly which figures are
+missing and why. That paragraph is the most credible thing on the page precisely because
+a competitor cannot copy it without the discipline behind it.
+
+**Every figure on the page is a row count read at build time.** 60 calls since 9 August ·
+20 dead, each with a recorded reason · 5 entry prices measured at the call, 39
+reconstructed and labelled, 16 absent with a stated reason. The dead examples are real
+tokens with their real close reasons. "No pair on DexScreener" is glossed in plain
+English without claiming more than we know — we cannot prove an LP was pulled, only that
+no tradeable market remains.
+
+**The landing page is statically generated; a visitor never causes a query.** It is the
+one page anyone can hit, so a per-visitor read would wake Neon for every stranger who
+clicks a link — the feed's trap, but scaling with traffic we do not control. The page is
+prerendered to a 20KB HTML file at build time and revalidated once a day. Verified: 25
+concurrent requests served from disk in ~4ms, and the built output marks `/` static while
+`/feed` stays dynamic.
+
+**A build-time read has to survive a sleeping database, and at first it did not.** The
+first build failed prerendering `/` because Neon was suspended, which on Vercel would be
+an intermittent broken deploy. A second failed mid-read when the connection dropped after
+waking. The stats read now wakes the database and retries the whole read — and if it
+still cannot read, **the build fails**. Falling back to placeholder figures would put
+invented numbers on the one page whose entire argument is that its numbers are real.
+
+**The private channel is not named.** The public one is named by its handle, which is
+already public. The landing page loads no Privy bundle at all: 98.6KB first load against
+the feed's 731KB.

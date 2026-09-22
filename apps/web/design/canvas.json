@@ -1,0 +1,53 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 560, "h": 900, "title": "Call card — full anatomy" },
+    { "file": "Journal.dc.html", "x": 700, "y": 0, "w": 1000, "h": 900, "title": "Journal — my plays" },
+    { "file": "Feed.dc.html", "x": 0, "y": 1060, "w": 1440, "h": 900, "title": "Live feed" },
+    { "file": "TrackRecord.dc.html", "x": 1580, "y": 1060, "w": 1200, "h": 680, "title": "Public track record" }
+  ],
+  "annotations": [
+    {
+      "id": "story-block",
+      "x": -420,
+      "y": 300,
+      "w": 340,
+      "text": "The story block is the wedge.\n\nStalkFun shows you a ticker and a number. Nobody tells you what the coin actually is, where the joke came from, or why it exists.\n\nLabelled as sourced from the project's own socials — so it reads as context, not as your analysis of a token you didn't vet."
+    },
+    {
+      "id": "time-to-peak",
+      "x": -420,
+      "y": 40,
+      "w": 340,
+      "text": "Time to peak answers the question every trader actually has: how long did I have to act?\n\nNobody in this space shows it, and it's free — you already have the timestamp and the OHLCV."
+    },
+    {
+      "id": "late-metric",
+      "x": 1760,
+      "y": 300,
+      "w": 320,
+      "text": "\"Entered at 2.2x the call\" is the most useful number in the journal.\n\nIt explains the gap between a channel's record and a trader's own, and it's the thing that makes the journal worth keeping rather than a notes app."
+    },
+    {
+      "id": "feed-states",
+      "x": -420,
+      "y": 1140,
+      "w": 340,
+      "text": "Three states, and the dead ones stay visible.\n\nA feed that quietly drops its losers is the pattern every scam tool uses. Keeping BRIKLAYR on screen, with the reason it died, is what makes the winners believable."
+    },
+    {
+      "id": "public-gate",
+      "x": 1580,
+      "y": 1820,
+      "w": 420,
+      "text": "This board is PUBLIC — no signup.\n\nThe calls are already spent, so showing them costs nothing and it's your whole proof section. Signup buys the two things with live value: seeing a call as it lands, and your own journal.\n\nThe honest summary row — 37% barely moved, 19% went to zero — is the credibility move. StalkFun can't print those numbers."
+    },
+    {
+      "id": "sample-data",
+      "x": 700,
+      "y": -220,
+      "w": 420,
+      "text": "All tokens, channels, narratives and figures are invented sample data — placeholders shaped like the real thing so the layout can be judged. [PRODUCT NAME] and [START DATE] are yours to fill.\n\nType: Space Grotesk for UI, JetBrains Mono for every figure. Lime accent rather than StalkFun's emerald, so it doesn't read as a clone."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

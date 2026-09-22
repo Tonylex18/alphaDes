@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #0c0d10; color: #e6e8ec;
+           font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #b8f24d; text-decoration: none; } a:hover { color: #cdf77f; }
+    .m { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+         font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+           text-transform: uppercase; color: #5b616b; }
+  </style>
+</helmet>
+
+<div style="width: 1200px; box-sizing: border-box; background: #0c0d10; padding: 52px 48px 56px 48px;">
+
+  <div style="max-width: 660px;">
+    <h2 style="margin: 0; font-size: 36px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.12;">Every call, tracked — including the ones that died.</h2>
+    <p style="margin: 14px 0 0 0; font-size: 16px; line-height: 25px; color: #8a919c; text-wrap: pretty;">This updates itself. No call is removed after the fact, and the losses sit next to the winners. Public, because you should be able to judge the channels before you trust them.</p>
+  </div>
+
+  <!-- honest summary -->
+  <div style="margin-top: 34px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 17px 19px;">
+      <div class="lbl">Calls tracked</div>
+      <div class="m" style="margin-top: 7px; font-size: 27px; font-weight: 700;">418</div>
+      <div style="margin-top: 3px; font-size: 11.5px; color: #6b717b;">since [START DATE]</div>
+    </div>
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 17px 19px;">
+      <div class="lbl">Median peak</div>
+      <div class="m" style="margin-top: 7px; font-size: 27px; font-weight: 700; color: #b8f24d;">2.3x</div>
+      <div style="margin-top: 3px; font-size: 11.5px; color: #6b717b;">from the call price</div>
+    </div>
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 17px 19px;">
+      <div class="lbl">Peaked under 1.5x</div>
+      <div class="m" style="margin-top: 7px; font-size: 27px; font-weight: 700; color: #f0a83c;">37%</div>
+      <div style="margin-top: 3px; font-size: 11.5px; color: #6b717b;">barely moved</div>
+    </div>
+    <div style="border: 1px solid #2b2024; background: #161113; border-radius: 9px; padding: 17px 19px;">
+      <div class="lbl" style="color: #a5716b;">Went to zero</div>
+      <div class="m" style="margin-top: 7px; font-size: 27px; font-weight: 700; color: #ef5f52;">19%</div>
+      <div style="margin-top: 3px; font-size: 11.5px; color: #a5716b;">rug or abandoned</div>
+    </div>
+  </div>
+
+  <!-- recent calls -->
+  <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 16px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; background: linear-gradient(140deg, #4a2a3a, #8f2e5c);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700;">YADOM</div>
+          <div style="font-size: 11px; color: #6b717b;">Trenches Only</div>
+        </div>
+      </div>
+      <div style="margin-top: 15px; display: flex; gap: 20px;">
+        <div><div class="lbl">Peak</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 700; color: #b8f24d;">33.5x</div></div>
+        <div><div class="lbl">Now</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 500; color: #a9b0ba;">28.1x</div></div>
+      </div>
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1c2027;">
+        <span class="m" style="font-size: 11.5px; color: #6b717b;">$27.9K → $933K ATH</span>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 16px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; background: linear-gradient(140deg, #23404a, #2e7d8f);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700;">TIDEPOOL</div>
+          <div style="font-size: 11px; color: #6b717b;">Midnight Desk</div>
+        </div>
+      </div>
+      <div style="margin-top: 15px; display: flex; gap: 20px;">
+        <div><div class="lbl">Peak</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 700; color: #b8f24d;">7.6x</div></div>
+        <div><div class="lbl">Now</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 500; color: #a9b0ba;">6.2x</div></div>
+      </div>
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1c2027;">
+        <span class="m" style="font-size: 11.5px; color: #6b717b;">$41.1K → $312K ATH</span>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 16px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; background: linear-gradient(140deg, #3a3524, #6b6030);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700;">SANDCAT</div>
+          <div style="font-size: 11px; color: #6b717b;">Midnight Desk</div>
+        </div>
+      </div>
+      <div style="margin-top: 15px; display: flex; gap: 20px;">
+        <div><div class="lbl">Peak</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 700; color: #f0a83c;">4.8x</div></div>
+        <div><div class="lbl">Now</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 500; color: #ef5f52;">0.6x</div></div>
+      </div>
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1c2027;">
+        <span class="m" style="font-size: 11.5px; color: #6b717b;">Meta moved on by the afternoon</span>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #2b2024; background: #121014; border-radius: 9px; padding: 16px 18px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; background: linear-gradient(140deg, #2c2c2c, #4a4a4a);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700; color: #a9b0ba;">BRIKLAYR</div>
+          <div style="font-size: 11px; color: #6b717b;">Trenches Only</div>
+        </div>
+      </div>
+      <div style="margin-top: 15px; display: flex; gap: 20px;">
+        <div><div class="lbl">Peak</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 700; color: #a9b0ba;">2.1x</div></div>
+        <div><div class="lbl">Now</div><div class="m" style="margin-top: 3px; font-size: 19px; font-weight: 700; color: #ef5f52;">0.04x</div></div>
+      </div>
+      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #2b2024;">
+        <span class="m" style="font-size: 11.5px; color: #e0837a;">LP pulled 41 min after the call</span>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="margin: 26px 0 0 0; font-size: 12.5px; color: #545a64;">Memecoins are high risk. Most tokens go to zero. Nothing here is financial advice.</p>
+</div>
+</x-dc>
+</body>
+</html>

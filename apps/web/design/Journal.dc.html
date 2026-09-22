@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; background: #0c0d10; color: #e6e8ec;
+           font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif; }
+    a { color: #b8f24d; text-decoration: none; } a:hover { color: #cdf77f; }
+    .m { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+         font-variant-numeric: tabular-nums; }
+    .lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.1em;
+           text-transform: uppercase; color: #5b616b; }
+  </style>
+</helmet>
+
+<div style="width: 1000px; box-sizing: border-box; background: #0c0d10; padding: 30px 30px 40px 30px;">
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between;">
+    <div>
+      <h1 style="margin: 0; font-size: 27px; font-weight: 700; letter-spacing: -0.02em;">My journal</h1>
+      <p style="margin: 6px 0 0 0; font-size: 14px; color: #7d838e;">Every play you took, and what actually happened.</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 7px; height: 38px; padding: 0 16px; border-radius: 7px; background: #b8f24d; color: #10130a; font-size: 14px; font-weight: 600;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10130a" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+      Log a play
+    </div>
+  </div>
+
+  <!-- my stats -->
+  <div style="margin-top: 22px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;">
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 15px 17px;">
+      <div class="lbl">Plays logged</div>
+      <div class="m" style="margin-top: 6px; font-size: 25px; font-weight: 700;">23</div>
+    </div>
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 15px 17px;">
+      <div class="lbl">Closed green</div>
+      <div class="m" style="margin-top: 6px; font-size: 25px; font-weight: 700; color: #b8f24d;">9</div>
+    </div>
+    <div style="border: 1px solid #23272f; background: #14161b; border-radius: 9px; padding: 15px 17px;">
+      <div class="lbl">Closed red</div>
+      <div class="m" style="margin-top: 6px; font-size: 25px; font-weight: 700; color: #ef5f52;">12</div>
+    </div>
+    <div style="border: 1px solid #2c3a1c; background: #12160e; border-radius: 9px; padding: 15px 17px;">
+      <div class="lbl" style="color: #8aa855;">Avg entry vs call</div>
+      <div class="m" style="margin-top: 6px; font-size: 25px; font-weight: 700; color: #b8f24d;">1.9x</div>
+      <div style="margin-top: 3px; font-size: 11px; color: #8aa855;">You buy late, on average</div>
+    </div>
+  </div>
+
+  <!-- entries -->
+  <div style="margin-top: 26px; border: 1px solid #23272f; background: #14161b; border-radius: 10px; overflow: hidden;">
+
+    <!-- expanded entry -->
+    <div style="padding: 18px 20px; border-bottom: 1px solid #1c2027;">
+      <div style="display: flex; align-items: flex-start; gap: 14px;">
+        <div style="width: 38px; height: 38px; border-radius: 7px; flex-shrink: 0; background: linear-gradient(140deg, #4a2a3a, #8f2e5c);"></div>
+        <div style="flex-grow: 1;">
+          <div style="display: flex; align-items: baseline; gap: 9px;">
+            <span class="m" style="font-size: 16px; font-weight: 700;">YADOM</span>
+            <span style="font-size: 12px; color: #7d838e;">Trenches Only · 8h ago</span>
+            <span style="padding: 2px 8px; border-radius: 999px; background: #151a12; border: 1px solid #2c3a1c; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: #b8f24d;">OPEN</span>
+          </div>
+          <div style="margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;">
+            <div>
+              <div class="lbl">Called at</div>
+              <div class="m" style="margin-top: 4px; font-size: 15px; color: #a9b0ba;">$27.9K</div>
+            </div>
+            <div>
+              <div class="lbl">You entered</div>
+              <div class="m" style="margin-top: 4px; font-size: 15px;">$61.4K</div>
+              <div class="m" style="margin-top: 2px; font-size: 11px; color: #f0a83c;">2.2x the call</div>
+            </div>
+            <div>
+              <div class="lbl">Size</div>
+              <div class="m" style="margin-top: 4px; font-size: 15px;">0.40 SOL</div>
+            </div>
+            <div>
+              <div class="lbl">Unrealised</div>
+              <div class="m" style="margin-top: 4px; font-size: 15px; font-weight: 700; color: #b8f24d;">+12.8x</div>
+            </div>
+          </div>
+          <div style="margin-top: 16px; padding: 13px 15px; border-radius: 7px; background: #101319; border: 1px solid #262b34;">
+            <div class="lbl">Note</div>
+            <p style="margin: 8px 0 0 0; font-size: 13.5px; line-height: 21px; color: #c3c9d2; text-wrap: pretty;">Saw the call 40 minutes late — was asleep. Took a smaller size because of the entry. Sold initial at +50% per the rule, letting the rest ride.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- collapsed rows -->
+    <div style="padding: 15px 20px; border-bottom: 1px solid #1c2027; display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 0.8fr; gap: 14px; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 11px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0; background: linear-gradient(140deg, #2c2c2c, #4a4a4a);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700; color: #a9b0ba;">BRIKLAYR</div>
+          <div style="font-size: 11px; color: #6b717b;">3d ago</div>
+        </div>
+      </div>
+      <div class="m" style="font-size: 13px; color: #7d838e;">$33.2K → $41.9K</div>
+      <div class="m" style="font-size: 13px; color: #f0a83c;">1.3x late</div>
+      <div class="m" style="font-size: 14px; font-weight: 700; color: #ef5f52;">−0.31 SOL</div>
+      <div style="text-align: right;"><span style="padding: 2px 8px; border-radius: 999px; background: #1a1214; border: 1px solid #38201f; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: #e0837a;">RUGGED</span></div>
+    </div>
+
+    <div style="padding: 15px 20px; border-bottom: 1px solid #1c2027; display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 0.8fr; gap: 14px; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 11px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0; background: linear-gradient(140deg, #23404a, #2e7d8f);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700;">TIDEPOOL</div>
+          <div style="font-size: 11px; color: #6b717b;">1d ago</div>
+        </div>
+      </div>
+      <div class="m" style="font-size: 13px; color: #7d838e;">$41.1K → $88.0K</div>
+      <div class="m" style="font-size: 13px; color: #f0a83c;">2.1x late</div>
+      <div class="m" style="font-size: 14px; font-weight: 700; color: #b8f24d;">+0.94 SOL</div>
+      <div style="text-align: right;"><span style="padding: 2px 8px; border-radius: 999px; background: #151a12; border: 1px solid #2c3a1c; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: #b8f24d;">CLOSED</span></div>
+    </div>
+
+    <div style="padding: 15px 20px; display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 0.8fr; gap: 14px; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 11px;">
+        <div style="width: 30px; height: 30px; border-radius: 6px; flex-shrink: 0; background: linear-gradient(140deg, #3a3524, #6b6030);"></div>
+        <div>
+          <div class="m" style="font-size: 14px; font-weight: 700;">SANDCAT</div>
+          <div style="font-size: 11px; color: #6b717b;">5d ago</div>
+        </div>
+      </div>
+      <div class="m" style="font-size: 13px; color: #7d838e;">$52.6K → $74.1K</div>
+      <div class="m" style="font-size: 13px; color: #7d838e;">1.4x late</div>
+      <div class="m" style="font-size: 14px; font-weight: 700; color: #ef5f52;">−0.12 SOL</div>
+      <div style="text-align: right;"><span style="padding: 2px 8px; border-radius: 999px; background: #17191f; border: 1px solid #2b303a; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; color: #8a919c;">CLOSED</span></div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
