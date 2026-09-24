@@ -21,7 +21,8 @@ const calls = await prisma.call.findMany({
     id: true, calledAt: true, source: true, status: true, closeReason: true,
     calledAtMarketCapUsd: true, marketCapObservedAt: true, marketCapSource: true,
     marketCapIsBackfilled: true, marketCapNullReason: true, statedMarketCapUsd: true,
-    latestMarketCapUsd: true, peakMarketCapUsd: true,
+    latestMarketCapUsd: true, peakMarketCapUsd: true, peakAt: true, peakSource: true,
+    peakIsBackfilled: true, peakNullReason: true,
     token: { select: { symbol: true, dexChainId: true, chain: true } },
   },
 });
@@ -87,6 +88,39 @@ if (nulls.length) {
 const dead = calls.filter((c) => c.status === "CLOSED_DEAD");
 console.log(`\nclosed dead: ${dead.length}`);
 for (const d of dead.slice(0, 10)) console.log(`  ${(d.token.symbol ?? "?").padEnd(12)} ${d.closeReason}`);
+
+// Peaks. A peak with no source covers a window we cannot describe, so it does
+// not count as one — see `market:peaks` and Phase 2b in DECISIONS.md.
+const withPeak = calls.filter((c) => c.peakSource !== null && c.peakMarketCapUsd !== null);
+// A multiple needs an entry price to divide by; a time to peak does not. Two
+// subsets, and both counts are printed, so neither median is quoted against a
+// denominator that is not its own.
+const peakWithEntry = withPeak.filter((c) => c.calledAtMarketCapUsd !== null && Number(c.calledAtMarketCapUsd) > 0);
+const peakMults = peakWithEntry.map((c) => Number(c.peakMarketCapUsd) / Number(c.calledAtMarketCapUsd));
+const delays = withPeak.filter((c) => c.peakAt).map((c) => c.peakAt!.getTime() - c.calledAt.getTime());
+const mid = (xs: number[]) => {
+  if (!xs.length) return null;
+  const a = [...xs].sort((x, y) => x - y);
+  const i = Math.floor(a.length / 2);
+  return a.length % 2 ? a[i]! : (a[i - 1]! + a[i]!) / 2;
+};
+console.log(`\npeaks: ${withPeak.length} of ${n} have one whose window starts at the call`);
+console.log(`  reconstructed ${withPeak.filter((c) => c.peakIsBackfilled).length}, measured ${withPeak.filter((c) => !c.peakIsBackfilled).length}`);
+const mm = mid(peakMults), md = mid(delays);
+if (mm !== null) console.log(`  median peak ${mm.toFixed(2)}x from the call price (over the ${peakWithEntry.length} that also have an entry)`);
+if (md !== null) console.log(`  median time to peak ${Math.round(md / 60000)}m (over all ${delays.length})`);
+const noPeak = calls.filter((c) => c.peakSource === null);
+if (noPeak.length) {
+  const why: Record<string, number> = {};
+  for (const c of noPeak) {
+    const key = (c.peakNullReason ?? "not attempted").replace(/^peak reconstruction: /, "").split(":").slice(0, 2).join(":").slice(0, 70);
+    why[key] = (why[key] ?? 0) + 1;
+  }
+  console.log("  why the rest have none:");
+  for (const [r, count] of Object.entries(why).sort((a, b) => b[1] - a[1])) console.log(`    ${count}x ${r}`);
+}
+const below = withPeak.filter((c) => c.calledAtMarketCapUsd !== null && Number(c.peakMarketCapUsd) < Number(c.calledAtMarketCapUsd));
+console.log(`  peak below entry: ${below.length}${below.length ? " — " + below.map((c) => c.token.symbol ?? "?").join(", ") : ""}`);
 
 const snaps = await prisma.priceSnapshot.count();
 const chains = await prisma.token.groupBy({ by: ["dexChainId"], _count: true });
