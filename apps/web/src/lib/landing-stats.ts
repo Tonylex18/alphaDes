@@ -33,7 +33,7 @@ import { prisma } from "@alphades/db";
  * FAILS. Falling back to placeholder figures would put invented numbers on the
  * one page whose whole argument is that its numbers are real.
  */
-async function wake(timeoutMs = 120_000): Promise<void> {
+async function wake(timeoutMs = WAKE_TIMEOUT_MS): Promise<void> {
   const started = Date.now();
   let last: unknown;
   while (Date.now() - started < timeoutMs) {
@@ -128,18 +128,39 @@ export type LandingStats = {
   } | null;
 };
 
+/**
+ * The retry budget, and why it is sized against Next's clock rather than Neon's.
+ *
+ * `staticPageGenerationTimeout` is 180s. If the read can take longer than that,
+ * Next kills the worker mid-read and RESTARTS static generation for this page
+ * — observed, with a database that never answered: the build never surfaced our
+ * error, it just looped, which on Vercel burns the build until the platform
+ * limit and reports somebody else's failure. So the whole budget has to fit
+ * inside 180s with room to spare, and then the build fails with the message
+ * below, which says what actually happened.
+ *
+ * 45s is ~3x the worst documented Neon cold start (5-15s), and there are three
+ * attempts, so a genuinely slow wake still gets through.
+ */
+const WAKE_TIMEOUT_MS = 45_000;
+const READ_ATTEMPTS = 3;
+/// 45 + 5 + 45 + 10 + 45 = 150s worst case, against a 180s page timeout.
+const RETRY_BACKOFF_MS = [5_000, 10_000];
+
 export async function getLandingStats(): Promise<LandingStats> {
   // Waking is not enough on its own: Neon can drop the connection again
   // between the wake and the read, which failed a build here. Retry the whole
   // read, and still fail loudly rather than publish placeholder figures.
   let last: unknown;
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= READ_ATTEMPTS; attempt++) {
     try {
       await wake();
       return await readStats();
     } catch (e) {
       last = e;
-      await new Promise((r) => setTimeout(r, 5_000 * attempt));
+      const backoff = RETRY_BACKOFF_MS[attempt - 1];
+      if (backoff === undefined) break;
+      await new Promise((r) => setTimeout(r, backoff));
     }
   }
   throw new Error(`landing stats: could not read the database — ${String(last).slice(0, 200)}`);
