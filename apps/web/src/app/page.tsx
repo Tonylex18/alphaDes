@@ -2,9 +2,9 @@
  * The public landing page.
  *
  * Statically generated and revalidated once a day, so a visitor never triggers
- * a database read. Every figure is a count of rows read at build time — nothing
- * is modelled or invented. See lib/landing-stats.ts for why there is no win
- * rate, median peak or time-to-peak figure yet.
+ * a database read. Every figure is read off the database at build time —
+ * nothing is modelled or invented, and a figure whose basis is a subset says
+ * how big that subset is. There is no win rate: see lib/landing-stats.ts.
  *
  * The copy sells the record, not returns. By our own data a third of these
  * calls are already dead; a page implying otherwise would make the honest
@@ -30,21 +30,110 @@ export default async function Landing() {
 
   return (
     <main className="land">
-      {/* 1 ── hero ------------------------------------------------------- */}
+      {/* nav ─────────────────────────────────────────────────────────── */}
+      <nav className="nav">
+        <div className="nav-in">
+          <div className="brand">
+            alpha<span>des</span>
+          </div>
+          <div className="nav-links">
+            <a href="#card">The card</a>
+            <a href="#window">The window</a>
+            <a href="#record">The record</a>
+          </div>
+          <Link className="btn pill" href="/feed">
+            See live calls
+          </Link>
+        </div>
+      </nav>
+
+      {/* 1 ── hero, with the product itself as the visual ───────────────── */}
       <section className="hero">
-        <div className="land-wrap">
+        <div className="glow" aria-hidden />
+        <div className="hero-in">
           <div className="eyebrow fig">watching @AlphaDesJurix and one private channel</div>
           <h1>
-            Every call these channels make, <span>kept honestly</span>.
+            Every call.
+            <br />
+            The story behind it.
+            <br />
+            <span>And what happened next.</span>
           </h1>
           <p className="lede">
-            We record each call the moment it lands — what the token is, what it was worth at that moment, and
-            what happened to it afterwards. Including the ones that went to zero.
+            We record each call the moment it lands — including the ones that went to zero.
           </p>
           <Link className="btn big" href="/feed">
             See live calls
           </Link>
-          <p className="under">The record below is public. No account needed to read it.</p>
+          <p className="under">Public record. No account needed to read it.</p>
+        </div>
+
+        {/* The real feed, built from real rows at build time. */}
+        <div className="showcase" aria-label="the live feed">
+          <p className="showcase-note">
+            The most recent calls we hold an entry price for, newest first — not a selection.
+          </p>
+          <div className="showcase-grid">
+            {s.heroCards.map((c) => (
+              <article className={`scard${c.dead ? " dead" : ""}`} key={c.symbol + c.entryUsd}>
+                <div className="scard-top">
+                  <div className="savatar">
+                    {c.imageUrl ? <img src={c.imageUrl} alt="" loading="lazy" /> : c.symbol.slice(0, 2)}
+                  </div>
+                  <div className="sname">
+                    <div className="ticker">${c.symbol}</div>
+                    <div className={`sprov ${c.provenance.toLowerCase()}`}>
+                      {c.provenance === "MEASURED" ? "measured at the call" : "reconstructed"}
+                    </div>
+                  </div>
+                  {c.dead && <span className="tag dead">DEAD</span>}
+                </div>
+                <div className="scard-nums">
+                  <div>
+                    <div className="k">Called at</div>
+                    <div className="v fig">{usd(c.entryUsd)}</div>
+                  </div>
+                  <div>
+                    <div className="k">Peak</div>
+                    <div className={`v fig ${c.peakMultiple !== null && c.peakMultiple >= 1 ? "up" : "down"}`}>
+                      {c.peakMultiple === null ? "—" : `${c.peakMultiple.toFixed(2)}x`}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="k">Now</div>
+                    <div className={`v fig ${c.nowMultiple !== null && c.nowMultiple >= 1 ? "up" : "down"}`}>
+                      {c.nowMultiple === null ? "—" : `${c.nowMultiple.toFixed(2)}x`}
+                    </div>
+                  </div>
+                </div>
+                {/* The number the rest of this space does not publish. Absent
+                    where we hold no peak whose window starts at the call. */}
+                <div className={`speak${c.timeToPeak === null ? " none" : ""}`}>
+                  {c.timeToPeak === null
+                    ? "no peak we can stand behind"
+                    : `${c.timeToPeak} to peak · ${c.peakIsReconstructed ? "reconstructed" : "measured"}`}
+                </div>
+                {c.story ? (
+                  <div className="sstory">
+                    <span className="lbl">
+                      {c.storyIsCaller ? "the caller’s own words" : "from the project’s own socials"}
+                    </span>
+                    {c.story.replace(/\s+/g, " ").slice(0, 150)}…
+                  </div>
+                ) : c.dead && c.closeReason ? (
+                  <div className="sstory dead-reason">
+                    <span className="lbl">closed</span>
+                    {c.closeReason}
+                  </div>
+                ) : (
+                  <div className="sstory empty">
+                    <span className="lbl">no story</span>
+                    Nothing published on this token’s own pages when it was called.
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -64,7 +153,7 @@ export default async function Landing() {
       </section>
 
       {/* 3 ── the card --------------------------------------------------- */}
-      <section className="land-wrap sec">
+      <section className="land-wrap sec" id="card">
         <h2>So we keep the rest.</h2>
         <p className="body">
           One card per call, built the moment it lands. This is a real one from the feed, not a mock-up.
@@ -94,6 +183,11 @@ export default async function Landing() {
                   </div>
                 </div>
               </div>
+              {s.anatomy.timeToPeak && (
+                <div className="speak">
+                  {s.anatomy.timeToPeak} to peak · {s.anatomy.peakIsReconstructed ? "reconstructed" : "measured"}
+                </div>
+              )}
               {s.anatomy.narrative && (
                 <div className="anat-story">
                   <span className="lbl">
@@ -116,7 +210,13 @@ export default async function Landing() {
                 rebuilt it from history afterwards.
               </li>
               <li>
-                <b>Peak and now.</b> Measured by our own polling, never taken from the channel’s claim about itself.
+                <b>Peak, and how long it took.</b> The highest the token reached after the call, and the window you
+                had to act in. Rebuilt from the whole price history between the call and now, or measured by our own
+                polling where we watched from the first minute — labelled either way, and left blank where we hold
+                neither.
+              </li>
+              <li>
+                <b>Now.</b> Our own polling. Never the channel’s claim about itself.
               </li>
             </ul>
           </div>
@@ -124,17 +224,37 @@ export default async function Landing() {
       </section>
 
       {/* 4 ── time to peak ----------------------------------------------- */}
-      <section className="land-wrap sec">
+      <section className="land-wrap sec" id="window">
         <h2>How long did you have to act?</h2>
         <p className="body">
           Every call has a window between landing and peaking. Nobody in this space publishes it, and it is the
           number that decides whether seeing a call twenty minutes late mattered. We record the timestamp of the
           call and poll the price from that minute, so the window is a measurement rather than a memory.
         </p>
+        {s.medianTimeToPeak && (
+          <div className="bignums window-nums">
+            <div>
+              <div className="bn amber">{s.medianTimeToPeak}</div>
+              <div className="bl">median time to peak</div>
+            </div>
+            <div>
+              <div className="bn">{s.medianPeakMultiple === null ? "—" : `${s.medianPeakMultiple.toFixed(2)}x`}</div>
+              <div className="bl">median peak, from the call price</div>
+            </div>
+          </div>
+        )}
         <p className="body muted">
-          There is no figure here yet, and there will not be one until it is honest. We began measuring prices on
-          21 September; most calls on the board were made before that, so any window we printed today would be
-          the time since <em>we started watching</em>, not the time since the call. It appears here when it is real.
+          Across the {s.withPeak} calls where we hold a peak whose window starts at the call — {s.peakReconstructed}{" "}
+          rebuilt from the full price history, {s.peakMeasured} watched from the first minute. The multiple is over
+          the {s.withPeakAndEntry} of those that also have a call price to divide by. The remaining{" "}
+          {s.calls - s.withPeak} calls show no peak at all, each with its reason on the card, because a peak over a
+          window we cannot describe is the thing this page exists to avoid.
+        </p>
+        <p className="body muted small">
+          Method: the highest price traded between the call and now, from minute candles where they were retained
+          and hourly ones across the rest. An hourly high is a price something really traded at, so it understates
+          at worst and can never invent a peak that did not happen. Daily candles are refused — they would date a
+          peak to within twenty-four hours, which makes this figure meaningless.
         </p>
       </section>
 
@@ -150,7 +270,7 @@ export default async function Landing() {
       </section>
 
       {/* 6 ── the honest record ------------------------------------------ */}
-      <section className="record">
+      <section className="record" id="record">
         <div className="land-wrap sec">
           <h2>The losers stay on the board.</h2>
           <p className="body">
@@ -158,19 +278,21 @@ export default async function Landing() {
             reason each one died and the time it happened.
           </p>
 
+          {/* Printing your own failure rate this large is the argument. */}
+          <div className="bignums">
+            <div className="bignum">
+              <div className="bn fig red">{s.deadPercent}%</div>
+              <div className="bl">
+                already dead — {s.deadCalls} of {s.calls}, each with a recorded reason
+              </div>
+            </div>
+            <div className="bignum">
+              <div className="bn fig">{s.calls}</div>
+              <div className="bl">calls tracked since {s.firstCallDate}</div>
+            </div>
+          </div>
+
           <dl className="figs">
-            <div>
-              <dt>Calls tracked</dt>
-              <dd className="fig">{s.calls}</dd>
-              <small>since {s.firstCallDate}</small>
-            </div>
-            <div>
-              <dt>Already dead</dt>
-              <dd className="fig red">{s.deadPercent}%</dd>
-              <small>
-                {s.deadCalls} of {s.calls}, each with a reason
-              </small>
-            </div>
             <div>
               <dt>Entry price measured</dt>
               <dd className="fig lime">{s.entryMeasured}</dd>
@@ -206,10 +328,9 @@ export default async function Landing() {
           </p>
 
           <p className="body caveat">
-            <b>What we will not show you yet:</b> a win rate, a median peak, or a time to peak. Price polling began
-            on 21 September and most of these calls were made before it, so any peak we printed would be the
-            highest price since we started watching — not the highest price after the call. Those numbers appear
-            here once we have measured a call from its first minute to its peak, and not before.
+            <b>What we will not show you:</b> a win rate. A win rate needs an exit rule, and we do not have one —
+            a peak is what the token did, not what anybody got for it. Nobody sells the top. The journal records
+            what a trader actually did, and it is private, so it will never be averaged into a number on this page.
           </p>
           <p className="asof fig">figures as of {s.asOf}, read from the database</p>
         </div>

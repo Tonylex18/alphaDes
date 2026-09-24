@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 export default {
   reactStrictMode: true,
+  // The landing page reads the database at build time and Neon may be asleep:
+  // waking it takes 5-15s and the read retries. Next's default 60s static
+  // generation timeout kills the worker mid-wake (observed), so allow for it.
+  staticPageGenerationTimeout: 180,
   // packages/db is a workspace package of TypeScript source, not build output.
   transpilePackages: ["@alphades/db"],
   experimental: { serverComponentsExternalPackages: ["@prisma/client"] },
