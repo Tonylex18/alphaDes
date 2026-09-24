@@ -77,6 +77,43 @@ Measured after the first full run (55 calls):
 
 `npm run market:report` prints the state of every number above.
 
+## Phase 2b — peak and time to peak
+
+The peak the poller had been recording was the highest price **since polling began on
+21 September**, while the earliest call is 9 August. Rebuilt from OHLCV over the whole
+window between the call and now, or shown as absent. `npm run market:peaks`.
+
+- [x] `peakMarketCapUsd` / `peakAt` reconstructed across the full window, flagged
+      `peakIsBackfilled`, with `peakSource` recording the granularity and the coverage.
+- [x] Hourly bars across the window, minute bars for the ~16h after the call, one extra
+      request to resolve the peak minute inside the winning hour. Day bars refused.
+- [x] Converted with the entry's own implied supply, so peak/entry is a ratio of two
+      prices rather than of two supply assumptions.
+- [x] `peakSource` gates publication: a peak with no describable window never reaches a
+      card. The poller's peak write is now conditional and can only raise the stored
+      value.
+- [ ] **Railway redeploy required.** The deployed worker still runs the old poller,
+      whose flush writes `peakMarketCapUsd` unconditionally and can lower a
+      reconstructed peak. `market:peaks` is safe to re-run afterwards to repair it.
+
+Measured over 62 calls:
+
+| | |
+|---|---|
+| with a peak whose window starts at the call | 55 of 62 |
+| reconstructed / measured by our own polling | 41 / 14 |
+| granularity that produced the peak | minute for all 41; the hourly sweep never won |
+| median peak | 1.59x from the call price, over the 46 that also have an entry price |
+| median time to peak | 59m, over all 55 |
+| peak below its entry | 0 |
+| lower bounds (first partial hour unscannable) | 3 — $SOLCAT, $EMBERCAT, 0x8fb94c4a |
+| agreement with the callers' claimed multiples | median ours/claimed 0.87x, 17% apart, ours >= the claim in 3 of 11 |
+| reconstruction vs our own live polling | identical to 0.0% on 11 of the 13 where both exist; 4.1% and 7.4% on the other two |
+| GeckoTerminal requests | 123 for 62 calls, ~50 minutes at 10/min |
+
+The systematic 0.87x is the channels rounding: every claim but one is a whole number
+(2x, 3x, 4x, 8x) and 8 of 11 sit above what the price history supports.
+
 ## Phase 7, worker only — brought forward
 
 Deployed ahead of schedule because **the live-path question needs days of uptime and a

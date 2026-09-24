@@ -111,11 +111,22 @@ Two scripts, both run locally against the dev branch:
 npm run market:report                  # state of every called-at market cap
 npm run market:reconstruct -- --dry-run   # rebuild historical entry prices
 npm run market:reconstruct
+npm run market:peaks -- --dry-run         # rebuild peak and time-to-peak
+npm run market:peaks
 ```
 
 `market:reconstruct` is resumable — it only selects calls still missing a price — and
 slow by design, because GeckoTerminal allows 10 calls a minute. It never overwrites a
 measured number.
+
+`market:peaks` rebuilds `peakMarketCapUsd` / `peakAt` from OHLCV across the whole window
+between the call and now, because a polled peak only covers the time since polling
+started. Unlike the entry reconstruction it is **not** resumable-by-omission: it
+re-examines every call, since the window grows. It is safe to re-run, costs ~2.5
+GeckoTerminal requests per call, and prints the granularity split, the disagreement
+against what the channels themselves claimed, and any call whose peak came out below its
+entry. Stop the deployed worker first, or just let it be — the poller can only ever raise
+a stored peak, never lower one.
 
 ## Narratives (Phase 3)
 

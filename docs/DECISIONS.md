@@ -531,3 +531,58 @@ invented numbers on the one page whose entire argument is that its numbers are r
 **The private channel is not named.** The public one is named by its handle, which is
 already public. The landing page loads no Privy bundle at all: 98.6KB first load against
 the feed's 731KB.
+
+## Phase 2b — peak and time to peak
+
+**The peak we had was an artefact, and it was about to go on the board.** Price polling
+began on 21 September; the earliest call is 9 August. So `peakMarketCapUsd`, written by
+the poller, meant *the highest price since we started watching* — a fact about our
+infrastructure wearing a label that reads, on a card, as a fact about the token. For a
+call that 50x'd in its first hour and then died in August, that column would have shown
+roughly 1x. It is rebuilt here from OHLCV over the whole window, or it is shown as
+absent.
+
+**Hourly bars are acceptable for a peak and were not acceptable for an entry, and this
+is not a reversal.** An entry is the price at one instant: a coarse bar answers a
+different question, which is why day-candle entries were measured at 340% wrong and
+withdrawn. A peak is the maximum over a window. Aggregating cannot invent a high — an
+hour's high is a price something really traded at — it can only lose the minute it
+happened at and clip the window's edges. So the peak scan understates at worst. Day bars
+are still refused: they would date a peak to within 24 hours, which makes "time to peak"
+meaningless.
+
+**The window, and the request budget.** 45 days of minute bars is ~65,000, against a
+1,000-bar cap and 10 requests a minute — 65 requests per call, hours for the board.
+Instead, per call: one page of minute bars covering the ~16 hours after the call, hourly
+bars paginated across the whole window, and one more minute request to resolve which
+minute inside the winning hour the peak happened at. The two resolutions agree where they
+overlap, because an hour's high IS the maximum of its minutes, so the hourly sweep finds
+the peak and the minute pass only sharpens when. Measured cost: ~2.5 requests per call.
+
+**Hour bars that start before the call are excluded.** Their high may be a price from
+before the call, which nobody reading the channel could have acted on — that would be
+inventing a peak rather than understating one. Minute bars are included from the bar
+containing the call, because that is the same bar the entry price was taken from. Where
+minute bars are not retained, the first partial hour is skipped and the peak is recorded
+as a lower bound.
+
+**The peak is converted with the entry's own supply.** Market cap is not in the OHLCV
+feed, so both numbers are `price x implied supply`. If the peak used a supply implied
+today and the entry used one implied in the past, the multiple between them would carry
+the ratio of two different assumptions. The supply is therefore parsed back out of
+`marketCapSource`, which is inelegant but keeps peak/entry a ratio of two prices. Where
+the entry was measured at ingest and recorded no supply, one is implied now and
+`peakSource` says so.
+
+**`peakSource` is the gate, not `peakMarketCapUsd`.** A peak with no source is a peak
+over a window we cannot describe, which is precisely what was wrong with the old value.
+The feed publishes a peak only when a source exists, and the poller now writes the peak
+in its own conditional statement that can only raise it — so a reconstructed peak can
+never be overwritten by the poller's lower in-memory value, and a peak the poller
+measures itself clears the backfilled flag as it writes. Calls the poller has watched
+from their first minute keep their measured peak; for the rest, an unconfirmed
+partial-window value is deleted and the reason recorded in `peakNullReason`.
+
+**Time to peak is a duration, not a timestamp.** "3h 20m to peak" answers the question a
+reader is actually asking — how long there was to act. Nobody is asking what o'clock it
+was.
