@@ -133,6 +133,15 @@ a { color: inherit; }
    that could be misread as 1x. */
 .num .v.none { color: var(--faint); font-size: 11px; font-family: var(--ui); }
 
+/* Time to peak, and where the peak came from. Small, because the peak's own
+   provenance is a qualifier on the number above it — but never absent, since a
+   reconstructed peak and a watched one are different claims. */
+.peak-note { font-size: 9.5px; letter-spacing: 0.02em; margin-top: 3px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.peak-note.measured { color: var(--lime); opacity: 0.8; }
+.peak-note.reconstructed { color: var(--amber); opacity: 0.85; }
+.peak-note.missing { color: var(--faint); }
+
 /* provenance of the entry price */
 .prov {
   display: inline-flex; align-items: center; gap: 5px;

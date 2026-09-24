@@ -56,11 +56,29 @@ export type FeedCall = {
   /// What the caller claimed, kept apart from what we measured.
   statedMarketCapUsd: number | null;
   latestMarketCapUsd: number | null;
-  peakMarketCapUsd: number | null;
   /// Null whenever the entry price is null. A multiple computed from nothing is
   /// not a small inaccuracy, it is a fabrication.
   latestMultiple: number | null;
-  peakMultiple: number | null;
+  /// The highest market cap since the call, and how long it took to get there.
+  ///
+  /// Same three states as the entry price, for the same reason. MEASURED means
+  /// our own polling watched the call from its first minute. RECONSTRUCTED
+  /// means it came from OHLCV over the window. MISSING means we have no peak
+  /// whose window covers the call — and the card then shows nothing, because
+  /// the alternative is publishing "the highest price since we started
+  /// watching" under a label that reads as "the highest price since the call".
+  peak: {
+    marketCapUsd: number | null;
+    multiple: number | null;
+    provenance: "MEASURED" | "RECONSTRUCTED" | "MISSING";
+    at: string | null;
+    /// peakAt − calledAt. The question a reader is asking is "how long did I
+    /// have to act", so this is seconds, rendered as a duration, never a
+    /// timestamp.
+    timeToPeakSeconds: number | null;
+    source: string | null;
+    nullReason: string | null;
+  };
   narrative: {
     source: "CALLER" | "GENERATED" | "NONE" | "PENDING";
     summary: string | null;
@@ -77,25 +95,21 @@ function multiple(now: number | null, entry: number | null): number | null {
   return now / entry;
 }
 
-async function readFeed(limit: number): Promise<FeedCall[]> {
-  const calls = await prisma.call.findMany({
-    orderBy: { calledAt: "desc" },
-    take: limit,
-    include: {
-      channel: { select: { displayName: true, role: true } },
-      token: { include: { narrative: true } },
-      _count: { select: { events: true } },
-    },
-  });
-
-  return calls
-    // OBSERVE channels are measured, never shown. They write nothing anyway;
-    // this is belt and braces so an observation channel can never reach a card.
-    .filter((c) => c.channel.role === "TRACK")
-    .map((c): FeedCall => {
+/**
+ * One database row as the feed presents it.
+ *
+ * Exported and pure so the rules about what may and may not be published can
+ * be tested without a database. `any` for the row because Prisma's generated
+ * payload type for this include is not worth naming here; every field it
+ * touches is read explicitly below.
+ */
+export function toFeedCall(c: any): FeedCall {
       const entry = c.calledAtMarketCapUsd === null ? null : Number(c.calledAtMarketCapUsd);
       const latest = c.latestMarketCapUsd === null ? null : Number(c.latestMarketCapUsd);
-      const peak = c.peakMarketCapUsd === null ? null : Number(c.peakMarketCapUsd);
+      // `peakSource` is the gate, not `peakMarketCapUsd`. A value with no
+      // source is a peak over some window we cannot describe, and an
+      // undescribable window is exactly what made the old number misleading.
+      const peak = c.peakSource === null || c.peakMarketCapUsd === null ? null : Number(c.peakMarketCapUsd);
       const n = c.token.narrative;
       return {
         id: c.id,
@@ -124,9 +138,19 @@ async function readFeed(limit: number): Promise<FeedCall[]> {
         },
         statedMarketCapUsd: c.statedMarketCapUsd === null ? null : Number(c.statedMarketCapUsd),
         latestMarketCapUsd: latest,
-        peakMarketCapUsd: peak,
         latestMultiple: multiple(latest, entry),
-        peakMultiple: multiple(peak, entry),
+        peak: {
+          marketCapUsd: peak,
+          multiple: multiple(peak, entry),
+          provenance: peak === null ? "MISSING" : c.peakIsBackfilled ? "RECONSTRUCTED" : "MEASURED",
+          at: peak === null ? null : (c.peakAt?.toISOString() ?? null),
+          timeToPeakSeconds:
+            peak === null || c.peakAt === null
+              ? null
+              : Math.max(0, Math.round((c.peakAt.getTime() - c.calledAt.getTime()) / 1000)),
+          source: peak === null ? null : c.peakSource,
+          nullReason: peak === null ? c.peakNullReason : null,
+        },
         narrative: {
           // No row yet is not the same as "we looked and found nothing".
           source: n === null ? "PENDING" : (n.source as "CALLER" | "GENERATED" | "NONE"),
@@ -136,7 +160,24 @@ async function readFeed(limit: number): Promise<FeedCall[]> {
         },
         eventCount: c._count.events,
       };
-    });
+}
+
+async function readFeed(limit: number): Promise<FeedCall[]> {
+  const calls = await prisma.call.findMany({
+    orderBy: { calledAt: "desc" },
+    take: limit,
+    include: {
+      channel: { select: { displayName: true, role: true } },
+      token: { include: { narrative: true } },
+      _count: { select: { events: true } },
+    },
+  });
+
+  return calls
+    // OBSERVE channels are measured, never shown. They write nothing anyway;
+    // this is belt and braces so an observation channel can never reach a card.
+    .filter((c) => c.channel.role === "TRACK")
+    .map(toFeedCall);
 }
 
 /// Cached by tag. The worker drops the tag when it writes; nothing else reads

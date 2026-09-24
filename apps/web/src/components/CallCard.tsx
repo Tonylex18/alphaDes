@@ -21,6 +21,24 @@ const usd = (n: number) =>
 
 const mult = (m: number) => (m >= 10 ? `${m.toFixed(0)}x` : `${m.toFixed(2)}x`);
 
+/**
+ * How long the reader would have had to act.
+ *
+ * "3h 20m to peak" answers a question. A timestamp does not: nobody reading a
+ * card is asking what o'clock it was. Rounded down to two units, because the
+ * peak is dated to the minute at best and to the hour at worst.
+ */
+function toPeak(seconds: number): string {
+  const m = Math.round(seconds / 60);
+  if (m < 1) return "under a minute";
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  const mm = m % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${mm}m`;
+  return `${mm}m`;
+}
+
 function ago(iso: string): string {
   const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return `${s}s ago`;
@@ -45,6 +63,26 @@ const PROVENANCE: Record<FeedCall["entry"]["provenance"], { label: string; title
   },
 };
 
+/// The peak's own three states. Deliberately worded so that RECONSTRUCTED can
+/// never be mistaken for something we watched happen, and MISSING reads as a
+/// finding rather than as a gap someone forgot to fill.
+const PEAK_PROVENANCE: Record<FeedCall["peak"]["provenance"], { label: string; title: string }> = {
+  MEASURED: {
+    label: "measured",
+    title: "We polled this call from the minute it landed, so this is the highest price we saw ourselves.",
+  },
+  RECONSTRUCTED: {
+    label: "reconstructed",
+    title:
+      "Rebuilt from historical candles across the whole window between the call and now. An hourly high is a price something really traded at, so this understates at worst — it is never higher than what happened.",
+  },
+  MISSING: {
+    label: "no peak",
+    title:
+      "We have no peak whose window starts at the call. Our polling began after this call was made, and the history could not be rebuilt, so there is nothing here we would stand behind.",
+  },
+};
+
 const NARRATIVE_LABEL = {
   CALLER: "the caller's own words",
   GENERATED: "summarised from the project's own socials",
@@ -54,8 +92,9 @@ const NARRATIVE_LABEL = {
 
 export function CallCard({ call, fresh }: { call: FeedCall; fresh: boolean }) {
   const dead = call.status === "CLOSED_DEAD";
-  const { entry } = call;
+  const { entry, peak } = call;
   const prov = PROVENANCE[entry.provenance];
+  const peakProv = PEAK_PROVENANCE[peak.provenance];
   const sym = call.token.symbol ?? call.token.address.slice(0, 6);
 
   return (
@@ -94,11 +133,16 @@ export function CallCard({ call, fresh }: { call: FeedCall; fresh: boolean }) {
           <div className="k">Peak</div>
           {/* A multiple is only shown when there is an entry price to divide by.
               Otherwise the market cap alone, with no implied performance. */}
-          {call.peakMultiple === null ? (
-            <div className="v none">{call.peakMarketCapUsd === null ? "—" : usd(call.peakMarketCapUsd)}</div>
+          {peak.multiple === null ? (
+            <div className="v none">{peak.marketCapUsd === null ? "—" : usd(peak.marketCapUsd)}</div>
           ) : (
-            <div className={`v ${call.peakMultiple >= 1 ? "up" : "down"}`}>{mult(call.peakMultiple)}</div>
+            <div className={`v ${peak.multiple >= 1 ? "up" : "down"}`}>{mult(peak.multiple)}</div>
           )}
+          <div className={`peak-note ${peak.provenance.toLowerCase()}`} title={peakProv.title}>
+            {peak.timeToPeakSeconds === null
+              ? peakProv.label
+              : `${toPeak(peak.timeToPeakSeconds)} to peak · ${peakProv.label}`}
+          </div>
         </div>
       </div>
 
@@ -118,6 +162,15 @@ export function CallCard({ call, fresh }: { call: FeedCall; fresh: boolean }) {
         <div className="why">
           <span className="reason">why:</span>
           <span>{entry.nullReason}</span>
+        </div>
+      )}
+
+      {/* Only when we know the entry but not the peak. That is the combination
+          a reader would otherwise read as an oversight. */}
+      {entry.provenance !== "MISSING" && peak.provenance === "MISSING" && peak.nullReason && (
+        <div className="why">
+          <span className="reason">no peak:</span>
+          <span>{peak.nullReason}</span>
         </div>
       )}
 

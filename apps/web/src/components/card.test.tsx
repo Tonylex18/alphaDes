@@ -19,9 +19,12 @@ const base = (over: Partial<FeedCall> = {}): FeedCall => ({
   entry: { marketCapUsd: 10_000, provenance: "MEASURED", observedAt: null, observedLagSeconds: 3, source: null, nullReason: null },
   statedMarketCapUsd: null,
   latestMarketCapUsd: 20_000,
-  peakMarketCapUsd: 30_000,
   latestMultiple: 2,
-  peakMultiple: 3,
+  peak: {
+    marketCapUsd: 30_000, multiple: 3, provenance: "MEASURED",
+    at: new Date(Date.now() - 3400_000).toISOString(), timeToPeakSeconds: 200 * 60,
+    source: "measured: polled high", nullReason: null,
+  },
   narrative: { source: "CALLER", summary: "The caller said this.", nullReason: null, sourceUrls: [] },
   eventCount: 2,
   ...over,
@@ -50,7 +53,7 @@ test("no entry price means no multiple anywhere on the card", () => {
     base({
       entry: { marketCapUsd: null, provenance: "MISSING", observedAt: null, observedLagSeconds: null, source: null, nullReason: "no pool on solana" },
       latestMultiple: null,
-      peakMultiple: null,
+      peak: { marketCapUsd: null, multiple: null, provenance: "MISSING", at: null, timeToPeakSeconds: null, source: null, nullReason: null },
     }),
   );
   assert.match(out, /no entry price/);
@@ -85,4 +88,49 @@ test("the caller's claim is shown as theirs, not as ours", () => {
   const out = html(base({ statedMarketCapUsd: 8_000 }));
   assert.match(out, /caller said/);
   assert.match(out, /their claim, not our measurement/);
+});
+
+/// Phase 2b. The peak used to mean "the highest price since polling started on
+/// 21 September", which for an August call is a fact about us wearing the label
+/// of a fact about the token. These three guard the replacement contract.
+
+test("a reconstructed peak is labelled, and says how long there was to act", () => {
+  const out = html(
+    base({
+      peak: {
+        marketCapUsd: 30_000, multiple: 3, provenance: "RECONSTRUCTED",
+        at: new Date().toISOString(), timeToPeakSeconds: 3 * 3600 + 20 * 60,
+        source: "geckoterminal:ohlcv minute high", nullReason: null,
+      },
+    }),
+  );
+  assert.match(out, /3h 20m to peak/, "the duration, not a timestamp");
+  assert.match(out, /reconstructed/);
+  assert.match(out, /3.00x/);
+});
+
+test("a peak we cannot stand behind shows nothing, not 1.0x and not the entry", () => {
+  const out = html(
+    base({
+      peak: {
+        marketCapUsd: null, multiple: null, provenance: "MISSING",
+        at: null, timeToPeakSeconds: null, source: null,
+        nullReason: "peak reconstruction: no pool on solana",
+      },
+    }),
+  );
+  assert.match(out, /no peak/);
+  assert.match(out, /no pool on solana/, "and says why, since the entry price IS known here");
+  // The specific failure: falling back to the entry, or to a flat 1x, either of
+  // which would read as "this call never moved".
+  assert.doesNotMatch(out, /1\.00x/);
+  assert.doesNotMatch(out, /to peak/);
+});
+
+test("a measured peak and a reconstructed one do not read the same", () => {
+  const measured = html(base());
+  const rebuilt = html(base({ peak: { ...base().peak, provenance: "RECONSTRUCTED" } }));
+  assert.notStrictEqual(measured, rebuilt, "the two claims must be distinguishable on the card");
+  assert.match(measured, /peak-note measured/);
+  assert.match(rebuilt, /peak-note reconstructed/);
 });
