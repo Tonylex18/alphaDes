@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "vercel-build": "npm --prefix ../.. run db:generate && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "TSX_TSCONFIG_PATH=./tsconfig.test.json node --import tsx --test src/components/*.test.tsx"
