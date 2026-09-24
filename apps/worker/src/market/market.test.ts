@@ -11,6 +11,7 @@ import { waitForDatabase } from "../lib/db-wake.js";
 import { cadenceFor, deathVerdict } from "./poller.js";
 import { capture, CAPTURE_MAX_CALL_AGE_MS, CaptureQueue } from "./capture.js";
 import type { Observation } from "./dexscreener.js";
+import { minutesInWindow } from "./geckoterminal.js";
 
 const obs = (o: Partial<Observation>): Observation => ({
   address: "A", dexChainId: "solana", pairAddress: "P", dexId: "pumpfun",
@@ -149,4 +150,41 @@ describe("the called-at market cap is written once", { skip: HAVE_DB ? false : "
     });
     assert.equal(q.inFlight, 0, "an old call must go to reconstruction, not capture");
   });
+});
+
+/**
+ * Phase 2b. The peak window starts at the bar containing the call.
+ *
+ * The bug these guard: the floor was `Math.max(...barTimestamps, fromTs)`, and
+ * fromTs always wins because a call lands inside a bar rather than at its
+ * start. Every peak was scanned from the NEXT minute, which understated all of
+ * them and produced one call whose peak was below its own entry price.
+ */
+test("the peak window includes the minute bar the call landed in", () => {
+  const call = 1_757_000_428; // 28 seconds into its minute
+  const barStart = call - 28;
+  const bars = [
+    { ts: barStart, open: 1, high: 9, low: 1, close: 2 }, // the call's own minute: the high of the window
+    { ts: barStart + 60, open: 2, high: 3, low: 1, close: 2 },
+    { ts: barStart - 60, open: 1, high: 99, low: 1, close: 1 }, // before the call: must not count
+  ];
+  const win = minutesInWindow(bars, call, call + 86_400);
+  assert.deepEqual(win.map((b) => b.ts).sort(), [barStart, barStart + 60]);
+  assert.equal(Math.max(...win.map((b) => b.high)), 9, "the call's own minute is in the window");
+  assert.ok(!win.some((b) => b.high === 99), "and the minute before it is not");
+});
+
+test("with no bar at or before the call, the window simply starts at the call", () => {
+  const call = 1_757_000_428;
+  const bars = [{ ts: call + 60, open: 1, high: 4, low: 1, close: 2 }];
+  assert.deepEqual(minutesInWindow(bars, call, call + 86_400), bars);
+});
+
+test("bars after the end of the window are excluded", () => {
+  const call = 1_757_000_400;
+  const bars = [
+    { ts: call, open: 1, high: 2, low: 1, close: 2 },
+    { ts: call + 7200, open: 1, high: 50, low: 1, close: 2 },
+  ];
+  assert.deepEqual(minutesInWindow(bars, call, call + 3600).map((b) => b.ts), [call]);
 });

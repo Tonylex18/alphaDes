@@ -140,6 +140,202 @@ export async function candleAt(
   return null;
 }
 
+/// One OHLCV bar, unconverted. `ts` is the bar's START, in seconds.
+export type Bar = { ts: number; open: number; high: number; low: number; close: number };
+
+/// GeckoTerminal's documented maximum bars per OHLCV request.
+const MAX_BARS_PER_REQUEST = 1000;
+
+/**
+ * One page of bars, newest first, ending before `beforeTs`.
+ *
+ * Same `token` discipline as `candleAt`: a pool has two sides and the wrong one
+ * produced a $1.5bn entry once already.
+ */
+async function ohlcvPage(
+  network: string,
+  pool: string,
+  timeframe: "minute" | "hour",
+  beforeTs: number,
+  limit: number,
+  mustPriceToken?: string,
+): Promise<Bar[]> {
+  const tokenParam = mustPriceToken ? `&token=${mustPriceToken}` : "";
+  const body = await getJson(
+    `/networks/${network}/pools/${pool}/ohlcv/${timeframe}` +
+      `?aggregate=1&limit=${Math.min(limit, MAX_BARS_PER_REQUEST)}` +
+      `&before_timestamp=${beforeTs}&currency=usd${tokenParam}`,
+  );
+  if (mustPriceToken) {
+    const base = String(body?.meta?.base?.address ?? "");
+    if (base && base.toLowerCase() !== mustPriceToken.toLowerCase()) {
+      throw new WrongSideOfPool(
+        `pool ${pool} prices ${body?.meta?.base?.symbol ?? base}, not the token asked about`,
+      );
+    }
+  }
+  const list: number[][] = body?.data?.attributes?.ohlcv_list ?? [];
+  const bars: Bar[] = [];
+  for (const [ts, o, h, l, c] of list) {
+    if (ts === undefined || !Number.isFinite(h)) continue;
+    bars.push({ ts, open: o!, high: h!, low: l!, close: c! });
+  }
+  return bars;
+}
+
+/**
+ * The minute bars that belong to a peak window starting at `fromTs`.
+ *
+ * The window starts at the bar CONTAINING the call, not at the call. That bar
+ * begins at most 59 seconds earlier and it is the same bar the entry price was
+ * read the open of, so peak and entry share a starting instant and the ratio
+ * between them is a ratio of two prices.
+ *
+ * Exported because this is where it went wrong: the floor was once computed as
+ * `Math.max(...barTimestamps, fromTs)`, and `fromTs` always wins — the call is
+ * inside its bar, not at the start of it. That dropped the call's own minute
+ * from every scan and understated every peak. It surfaced as a call whose peak
+ * came out below its entry, which cannot happen when both are read off one bar.
+ */
+export function minutesInWindow(minutes: Bar[], fromTs: number, toTs: number): Bar[] {
+  const startingBefore = minutes.filter((b) => b.ts <= fromTs).map((b) => b.ts);
+  const floor = startingBefore.length > 0 ? Math.max(...startingBefore) : fromTs;
+  return minutes.filter((b) => b.ts >= floor && b.ts <= toTs);
+}
+
+export type WindowPeak = {
+  /// The highest traded price in the window, in USD.
+  high: number;
+  /// Start of the bar that contained it. An hour bar dates the peak to within
+  /// an hour; the caller must not present it as an instant.
+  at: Date;
+  timeframe: "minute" | "hour";
+  /// Human-readable account of what was actually scanned, for `peakSource`.
+  coverage: string;
+  /// True when the first partial hour of the window had to be skipped because
+  /// minute bars were not retained that far back. The peak is then a lower
+  /// bound, which for a token that peaked in its first hour understates badly.
+  firstHourSkipped: boolean;
+  /// How many HTTP requests this cost, for the run's rate-limit budget.
+  requests: number;
+};
+
+/**
+ * The highest price traded between `from` and `to`.
+ *
+ * **Why this is not the same question as `candleAt`, and why hourly is allowed
+ * here.** An entry needs the price at one instant, so a coarse bar is a wrong
+ * answer — a day open was 340% out, which is why those reconstructions were
+ * withdrawn. A peak is the maximum over a window, and an hour bar's high is a
+ * price something actually traded at inside that hour. Aggregating cannot
+ * invent a high; it can only lose the exact minute it happened at, and it can
+ * understate the window's edges. So hourly is sound for a maximum and unsound
+ * for an instant. Day bars are still refused: they would date a peak to within
+ * 24 hours, which makes "time to peak" meaningless.
+ *
+ * **The window.** 45 days of minute bars is ~65,000, far past the 1,000-bar cap
+ * and ~65 requests per call at 10 requests/minute. So: minute bars for the
+ * ~16 hours after the call, where a memecoin usually does whatever it is going
+ * to do, and hourly bars, paginated, for the whole window. The two agree where
+ * they overlap — an hour's high IS the maximum of its minutes — so the hourly
+ * sweep finds the peak and the minute pass only sharpens when it happened.
+ *
+ * **The first bar.** Hour bars that START before the call are excluded: their
+ * high may be a price from before the call, which nobody reading the channel
+ * could have acted on. Minute bars are included from the bar containing the
+ * call, because that is the bar the entry price itself came from.
+ */
+export async function peakBetween(
+  network: string,
+  pool: string,
+  from: Date,
+  to: Date,
+  mustPriceToken?: string,
+): Promise<WindowPeak | null> {
+  const fromTs = Math.floor(from.getTime() / 1000);
+  const toTs = Math.ceil(to.getTime() / 1000);
+  if (toTs <= fromTs) return null;
+  let requests = 0;
+
+  // 1. Minute bars from the call forward — one page, ~16.6 hours.
+  const minuteEnd = Math.min(toTs, fromTs + MAX_BARS_PER_REQUEST * 60);
+  let minutes: Bar[] = [];
+  try {
+    minutes = await ohlcvPage(network, pool, "minute", minuteEnd + 60, MAX_BARS_PER_REQUEST, mustPriceToken);
+    requests++;
+  } catch (e) {
+    if (e instanceof WrongSideOfPool) throw e;
+    // Minute retention is best-effort. The hourly sweep below is the real scan.
+  }
+  const nearMinutes = minutesInWindow(minutes, fromTs, toTs);
+
+  // 2. Hourly across the whole window, paginated backwards from now.
+  const hours: Bar[] = [];
+  let cursor = toTs + 3600;
+  for (let page = 0; page < 12; page++) {
+    let bars: Bar[];
+    try {
+      bars = await ohlcvPage(network, pool, "hour", cursor, MAX_BARS_PER_REQUEST, mustPriceToken);
+      requests++;
+    } catch (e) {
+      if (e instanceof WrongSideOfPool) throw e;
+      break;
+    }
+    if (bars.length === 0) break;
+    hours.push(...bars);
+    const oldest = Math.min(...bars.map((b) => b.ts));
+    if (oldest <= fromTs || oldest >= cursor) break; // reached the call, or no progress
+    cursor = oldest;
+  }
+  // Only hours that begin at or after the call: see the doc comment.
+  const fullHours = hours.filter((b) => b.ts >= fromTs && b.ts <= toTs);
+
+  let best: { high: number; ts: number; timeframe: "minute" | "hour" } | null = null;
+  for (const b of nearMinutes) if (!best || b.high > best.high) best = { high: b.high, ts: b.ts, timeframe: "minute" };
+  for (const b of fullHours) if (!best || b.high > best.high) best = { high: b.high, ts: b.ts, timeframe: "hour" };
+  if (!best) return null;
+
+  // 3. If the winner is an hour bar, try to say WHICH MINUTE inside it. Cheap
+  //    (one request) and it is the difference between "3h to peak" and
+  //    "3h 20m to peak", which is the number a reader actually wants.
+  let refined = false;
+  if (best.timeframe === "hour") {
+    try {
+      const inHour = await ohlcvPage(network, pool, "minute", best.ts + 3600, 60, mustPriceToken);
+      requests++;
+      const within = inHour.filter((b) => b.ts >= best!.ts && b.ts < best!.ts + 3600);
+      let sharpest: Bar | null = null;
+      for (const b of within) if (!sharpest || b.high > sharpest.high) sharpest = b;
+      // Only accept the refinement if it agrees with the hour it came from.
+      // A minute high well below its own hour's high means the pages disagree,
+      // and a disagreement is not something to average away.
+      if (sharpest && sharpest.high >= best.high * 0.98) {
+        best = { high: Math.max(best.high, sharpest.high), ts: sharpest.ts, timeframe: "minute" };
+        refined = true;
+      }
+    } catch (e) {
+      if (e instanceof WrongSideOfPool) throw e;
+    }
+  }
+
+  const firstHourSkipped = nearMinutes.length === 0;
+  const parts = [
+    `${fullHours.length} hour bar(s)`,
+    nearMinutes.length > 0 ? `${nearMinutes.length} minute bar(s) from the call` : "no minute bars retained",
+    refined ? "peak minute resolved inside its hour" : null,
+    firstHourSkipped ? "partial first hour excluded (lower bound)" : null,
+  ].filter(Boolean);
+
+  return {
+    high: best.high,
+    at: new Date(best.ts * 1000),
+    timeframe: best.timeframe,
+    coverage: parts.join(", "),
+    firstHourSkipped,
+    requests,
+  };
+}
+
 export type GeckoToken = { priceUsd: number | null; fdvUsd: number | null; totalSupply: number | null; symbol: string | null };
 
 /// Current token facts, used to imply a supply when DexScreener has nothing.

@@ -19,6 +19,7 @@
     "typecheck": "tsc -b --pretty",
     "ingest:report": "npm run report -w @alphades/worker --",
     "market:reconstruct": "npm run market:reconstruct -w @alphades/worker --",
+    "market:peaks": "npm run market:peaks -w @alphades/worker --",
     "market:report": "npm run market:report -w @alphades/worker --",
     "market:poll": "npm run market:poll -w @alphades/worker --",
     "market:metadata": "npm run market:metadata -w @alphades/worker --",

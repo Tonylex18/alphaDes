@@ -15,7 +15,8 @@
     "market:report": "tsx src/scripts/market-report.ts",
     "market:poll": "tsx src/scripts/market-poll-only.ts",
     "market:metadata": "tsx src/scripts/refresh-metadata.ts",
-    "narrative:generate": "tsx src/scripts/generate-narratives.ts"
+    "narrative:generate": "tsx src/scripts/generate-narratives.ts",
+    "market:peaks": "tsx src/scripts/reconstruct-peaks.ts"
   },
   "dependencies": {
     "@alphades/db": "*",
