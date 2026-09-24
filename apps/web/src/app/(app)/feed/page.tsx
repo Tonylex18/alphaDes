@@ -6,7 +6,7 @@
  * straight out of the HTML — which is exactly what the first version did. The
  * data is fetched from /api/feed after sign-in, with a token.
  */
-import { Gate } from "../../components/Gate";
+import { Gate } from "../../../components/Gate";
 
 export const dynamic = "force-dynamic";
 
