@@ -175,9 +175,28 @@ model Call {
   /// <private-channel>.
   statedMarketCapUsd    Decimal? @db.Decimal(20, 4)
 
-  /// Measured by our own polling, not claimed by the channel.
+  /// The highest market cap between the call and now — the number that says
+  /// whether the call was worth acting on.
+  ///
+  /// Polling alone cannot produce this. It began on 21 September and most calls
+  /// are from 9 August, so a polled peak is the highest price SINCE WE STARTED
+  /// WATCHING, which is a fact about us and not about the token. It is
+  /// therefore reconstructed from OHLCV over the whole window — see
+  /// `market:peaks` — and the poller may only raise it afterwards.
   peakMarketCapUsd    Decimal?  @db.Decimal(20, 4)
   peakAt              DateTime?
+  /// What produced it, in prose, because the granularity matters: an hourly
+  /// high is a real traded high but dates the peak only to within an hour.
+  /// NULL means we have no peak whose window covers the call, and the card
+  /// must then show none rather than falling back to the entry price.
+  peakSource          String?
+  /// True when the peak came from OHLCV rather than from our own observation.
+  /// Cleared if a later poll measures a higher one. Same contract as
+  /// `marketCapIsBackfilled`: reconstructed and measured are never presented
+  /// as the same thing.
+  peakIsBackfilled    Boolean   @default(false)
+  /// Why there is no peak. A recorded outcome, not an absence to be guessed at.
+  peakNullReason      String?
   latestMarketCapUsd  Decimal?  @db.Decimal(20, 4)
   latestAt            DateTime?
   /// Consecutive polls that found the token dead by some rule. A single bad
