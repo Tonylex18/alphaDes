@@ -56,6 +56,15 @@ export type Tracked = {
   latest: Observation | null;
   peakMarketCapUsd: number | null;
   peakAt: Date | null;
+  /// Whether the stored peak's window actually starts at the call.
+  ///
+  /// It does not for any call older than the day polling began — for those the
+  /// peak is "the highest price since we started watching", which is a fact
+  /// about us. `market:peaks` establishes a real window from OHLCV and sets
+  /// `peakSource`; until it has, this poller keeps its peak in memory and
+  /// writes nothing, so that a peak in the database always means a peak since
+  /// the call.
+  peakWindowCovered: boolean;
   /// What the database currently holds, so we can tell whether a write is
   /// actually needed.
   persistedLatest: number | null;
@@ -101,6 +110,7 @@ export class MarketPoller {
       select: {
         id: true, calledAt: true, status: true, deadStrikes: true,
         calledAtMarketCapUsd: true, latestMarketCapUsd: true, peakMarketCapUsd: true, peakAt: true,
+        peakSource: true,
         token: { select: { id: true, address: true, dexChainId: true } },
       },
     });
@@ -119,6 +129,7 @@ export class MarketPoller {
         latest: null,
         peakMarketCapUsd: c.peakMarketCapUsd === null ? null : Number(c.peakMarketCapUsd),
         peakAt: c.peakAt,
+        peakWindowCovered: c.peakSource !== null,
         persistedLatest: c.latestMarketCapUsd === null ? null : Number(c.latestMarketCapUsd),
         persistedPeak: c.peakMarketCapUsd === null ? null : Number(c.peakMarketCapUsd),
         lastFlushAt: now,
@@ -130,10 +141,13 @@ export class MarketPoller {
   }
 
   /// Add a call the listener just created, so it is polled without a restart.
-  track(t: Omit<Tracked, "latest" | "peakMarketCapUsd" | "peakAt" | "persistedLatest" | "persistedPeak" | "lastFlushAt" | "nextPollAt" | "missingStrikes" | "status" | "deadStrikes">) {
+  track(t: Omit<Tracked, "latest" | "peakMarketCapUsd" | "peakAt" | "peakWindowCovered" | "persistedLatest" | "persistedPeak" | "lastFlushAt" | "nextPollAt" | "missingStrikes" | "status" | "deadStrikes">) {
     if (this.tokens.has(t.callId)) return;
     this.tokens.set(t.callId, {
       ...t, status: "ACTIVE", deadStrikes: 0, latest: null,
+      // A call the listener just created is watched from the moment it landed,
+      // so every high this poller sees really is a high since the call.
+      peakWindowCovered: true,
       peakMarketCapUsd: null, peakAt: null, persistedLatest: null, persistedPeak: null,
       lastFlushAt: Date.now(), nextPollAt: Date.now() + 30_000, missingStrikes: 0,
     });
@@ -247,7 +261,7 @@ export class MarketPoller {
     // Worth a write?
     const moved = (a: number | null, b: number | null) =>
       a === null || b === null ? a !== b : Math.abs(a - b) / Math.max(b, 1) >= MEANINGFUL_CHANGE;
-    const newPeak = t.peakMarketCapUsd !== null && moved(t.peakMarketCapUsd, t.persistedPeak);
+    const newPeak = t.peakWindowCovered && t.peakMarketCapUsd !== null && moved(t.peakMarketCapUsd, t.persistedPeak);
     const stale = now - t.lastFlushAt >= FLUSH_INTERVAL_MS;
     const changed = moved(t.latest?.marketCapUsd ?? null, t.persistedLatest);
     if (newPeak || (stale && changed)) this.pendingFlush.add(t.callId);
@@ -270,10 +284,10 @@ export class MarketPoller {
           where: { id: t.callId },
           data: {
             // calledAtMarketCapUsd is NEVER touched here. Rule 3.
+            // The peak is not touched here either — see the separate write
+            // below, which may only raise it.
             latestMarketCapUsd: t.latest?.marketCapUsd ?? undefined,
             latestAt: t.latest?.observedAt ?? undefined,
-            peakMarketCapUsd: t.peakMarketCapUsd ?? undefined,
-            peakAt: t.peakAt ?? undefined,
             deadStrikes: t.deadStrikes,
             ...(t.status === "CLOSED_DEAD"
               ? { status: "CLOSED_DEAD" as const, closedAt: new Date(), closeReason: closeReason ?? "dead" }
@@ -281,6 +295,33 @@ export class MarketPoller {
           },
         }),
       );
+      // The peak, and only upward.
+      //
+      // Two reasons this is its own conditional write rather than a field on
+      // the update above. First, `market:peaks` reconstructs peaks from OHLCV
+      // over the whole window, and this poller's in-memory peak — which starts
+      // from whatever was loaded at boot — must never be able to write a
+      // smaller number over it. Second, a peak this poller measured itself is
+      // measured, not reconstructed, so it clears the flag as it writes.
+      if (t.peakWindowCovered && t.peakMarketCapUsd !== null) {
+        const peak = t.peakMarketCapUsd;
+        const at = t.peakAt ?? new Date();
+        writes.push(
+          this.prisma.call.updateMany({
+            where: {
+              id: t.callId,
+              OR: [{ peakMarketCapUsd: null }, { peakMarketCapUsd: { lt: peak } }],
+            },
+            data: {
+              peakMarketCapUsd: peak,
+              peakAt: at,
+              peakSource: `measured: polled high at ${at.toISOString()}`,
+              peakIsBackfilled: false,
+              peakNullReason: null,
+            },
+          }),
+        );
+      }
       if (t.latest?.symbol || t.latest?.websiteUrl || t.latest?.twitterUrl || t.latest?.telegramUrl) {
         // Metadata is free — it rides along on a price observation we already
         // made. Phase 3 needs the socials, and only a live capture stored them
