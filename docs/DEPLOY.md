@@ -156,22 +156,125 @@ npm run ingest:report -- 2026-09-20T00:00:00Z   # messages by path, lag per path
   worst lag, database queries, connection warnings. That is where an OBSERVE channel's
   numbers live, since it writes nothing.
 
-## The web app (Phase 4) — Vercel, not Railway
+## The web app — Vercel, not Railway
 
-Next.js, deployed from the repo root with `apps/web` as the project root. It reads the
-same Neon `dev` branch the worker writes to.
+Next.js, reading the same Neon `dev` branch the worker writes to. Two hosts, one
+database: the worker cannot go on Vercel because it holds a persistent Telegram
+connection, and the web app has no reason to sit on Railway.
 
-| Variable | Notes |
-|---|---|
-| `DATABASE_URL` | Neon pooled. Read-only in practice; the web app never writes. |
-| `NEXT_PUBLIC_PRIVY_APP_ID` | Public by design — it ships to the browser. |
-| `PRIVY_APP_SECRET` | Server-side token verification. Never exposed. |
-| `REVALIDATE_SECRET` | Must match the worker's. |
+### Project settings
 
-Then point the worker's `FEED_REVALIDATE_URL` at `https://<the deployment>/api/revalidate`.
-Until that is set the feed still updates, but only when its 10-minute cache expires
-rather than seconds after a call lands.
+| Setting | Value | Why |
+|---|---|---|
+| Framework preset | Next.js | |
+| Root directory | `apps/web` | |
+| Include files outside the root directory | **on** | It is an npm workspaces monorepo. The build needs `packages/db` and the root `package-lock.json`; with this off, the install cannot resolve `@alphades/db`. |
+| Install command | *(default)* | Vercel installs at the workspace root because the root `package.json` declares `workspaces` and the lockfile is there. |
+| Build command | *(default)* | Vercel runs `vercel-build` when a package defines it, which this one does — see below. Do not override it with `next build`, which would skip the Prisma step. |
+| Output directory | *(default)* | |
+| Node version | 22.x | Matches local; the worker runs the same. |
 
-**The feed is gated server-side.** `/api/feed` verifies a Privy access token and returns
-401 without one; the page itself renders no call data. The public track record (Phase 6)
-will be a separate, unauthenticated route.
+### The Prisma trap, again
+
+`apps/web/package.json` defines:
+
+```json
+"vercel-build": "npm --prefix ../.. run db:generate && next build"
+```
+
+The Prisma client is generated into `node_modules` and is not in the repo, so a build
+that skips generation compiles against an empty client. `npm --prefix ../..` runs at the
+workspace root, which is where `db:generate` and workspace resolution both live — `-w`
+does not work from inside a workspace package.
+
+This is not belt-and-braces. Tested on a clean `npm ci` from the root lockfile: the
+client that `@prisma/client`'s own postinstall produced had **zero** knowledge of this
+schema (`grep -c peakIsBackfilled` → 0), and after `vercel-build` it had 49. Vercel also
+caches `node_modules` between builds, and a cache hit skips postinstall entirely.
+
+`prisma generate` needs no database credentials — verified with both URLs unset — so
+this step cannot fail for a missing secret.
+
+### Environment variables
+
+Four on Vercel, and **only** four. `apps/web/.env.local` exists locally and contains the
+worker's secrets too, including `TG_SESSION`; do not paste it in wholesale. A Telegram
+session string has no business in a second platform's environment store.
+
+| Variable | Vercel | Railway | Must match |
+|---|---|---|---|
+| `DATABASE_URL` | yes — Neon **pooled** | yes | same Neon branch, or the two halves of the site disagree |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | yes | no | — |
+| `PRIVY_APP_SECRET` | yes | no | — |
+| `REVALIDATE_SECRET` | yes | yes | **yes** |
+| `FEED_REVALIDATE_URL` | no | yes | must point at the Vercel deployment |
+| `DIRECT_URL` | no | yes | migrations only |
+| `TG_API_ID`, `TG_API_HASH`, `TG_SESSION` | **no** | yes | — |
+| `ANTHROPIC_API_KEY` | no | yes | — |
+| `NEON_BRANCH`, `POLL_INTERVAL_MS`, `STARTUP_DELAY_MS` | no | yes | — |
+
+**`REVALIDATE_SECRET` is the one with no safety net.** If the two sides disagree, the
+worker's POST is rejected, the worker does not care, and the feed silently falls back to
+expiring on its 10-minute cache. Nothing errors and nothing alerts — the feed just feels
+slow. To check it after deploying, from a machine with the secret:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H "authorization: Bearer $REVALIDATE_SECRET" \
+  https://<the deployment>/api/revalidate
+# 200 the two match   401 they do not   503 Vercel has no REVALIDATE_SECRET at all
+```
+
+Set `FEED_REVALIDATE_URL` on Railway to `https://<the deployment>/api/revalidate` once
+the domain exists, and restart the worker.
+
+### The build reads the database, and must fail rather than publish
+
+`/` is statically prerendered, so a visitor never wakes Neon — but the build does, and
+Neon may be suspended when it runs. The read wakes the database and retries the whole
+read; if it still cannot read, **the build fails**. Publishing placeholder figures on the
+one page whose argument is that its numbers are real would be worse than a failed deploy.
+
+The retry budget is sized against Next's clock, not Neon's: `staticPageGenerationTimeout`
+is 180s, and a read that can outlast it gets its worker killed and static generation
+**restarted**, in a loop — observed against a database that never answered, where the
+build never surfaced our own error and would have run until Vercel's build limit. The
+budget is therefore a 45s wake (~3x the worst documented Neon cold start) times three
+attempts, 150s worst case.
+
+Verified by pointing `DATABASE_URL` at a dead address: the build exits 1 in about two and
+a half minutes, with `landing stats: could not read the database — Can't reach database
+server`, and no `index.html` is written. A normal build takes ~2m10s with no timeout
+warnings.
+
+### What ships to a signed-out visitor
+
+Measured against a production build, not `next dev`:
+
+| | HTML | scripts | of which Privy |
+|---|---|---|---|
+| `/` | 45KB, fully static | 7 chunks, 434KB | **none** |
+| `/feed`, signed out | 7KB | 11 chunks, 2.6MB | 2.2MB |
+
+The signed-out feed contains no ticker, no market cap, no close reason and no field name
+from the schema — `/api/feed` verifies a Privy access token server-side and returns 401
+without one.
+
+Privy lives in the `(app)` route group rather than the root layout. A client provider in
+the root layout is downloaded by **every** route under it, which had the public landing
+page pulling a 1.9MB Privy chunk it never uses. Next's "First Load JS" column did not
+show this — it reported 98.6KB for `/` while the served HTML referenced 2.6MB — so it has
+to be measured from the HTML.
+
+### Order of operations for the first deploy
+
+1. Redeploy the **worker** first. Until it carries the current poller, its flush can
+   overwrite a reconstructed peak with a lower in-memory value while leaving
+   `peakSource` and `peakIsBackfilled` untouched — a number labelled as something it is
+   not. This has happened: `$FLEX` was reconstructed at a $3.58m peak and is currently
+   showing $980k with a source string still describing the reconstruction.
+2. Re-run `npm run market:peaks` to repair anything it clobbered.
+3. Then deploy the web app, so the prerendered landing figures are built on repaired
+   rows rather than on clobbered ones.
+4. Set `FEED_REVALIDATE_URL` on Railway and restart the worker.
+5. Check the revalidate secret with the curl above.

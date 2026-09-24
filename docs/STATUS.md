@@ -114,6 +114,24 @@ Measured over 62 calls:
 The systematic 0.87x is the channels rounding: every claim but one is a whole number
 (2x, 3x, 4x, 8x) and 8 of 11 sit above what the price history supports.
 
+## Phase 7, web — Vercel, prepared not deployed
+
+- [x] `vercel-build` runs `db:generate` before `next build`. Tested on a clean `npm ci`:
+      the client from `@prisma/client`'s postinstall knew nothing of this schema
+      (0 hits for `peakIsBackfilled`); after `vercel-build`, 49.
+- [x] Build-time read fails the build rather than publishing placeholders — verified
+      against a dead address: exit 1 in ~2.5 min, no `index.html` written.
+- [x] Retry budget resized to fit inside `staticPageGenerationTimeout`. It did not
+      before, so a database that never answered made Next kill and RESTART static
+      generation in a loop instead of surfacing our error.
+- [x] Privy moved out of the root layout into the `(app)` route group. The public
+      landing page was pulling a 1.9MB Privy chunk it never uses: 12 chunks / 2.6MB
+      before, 7 chunks / 434KB after. Next's "First Load JS" column did not show it.
+- [x] Signed-out `/feed` ships 7KB of HTML with no ticker, market cap, close reason or
+      schema field name; `/api/feed` returns 401.
+- [x] `REVALIDATE_SECRET` contract verified end to end: 200 / 401 / 401.
+- [ ] Deployed — needs the Vercel account. Settings are in `docs/DEPLOY.md`.
+
 ## Phase 7, worker only — brought forward
 
 Deployed ahead of schedule because **the live-path question needs days of uptime and a
